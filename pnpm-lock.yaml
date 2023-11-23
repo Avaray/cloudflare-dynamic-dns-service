@@ -1,0 +1,18 @@
+lockfileVersion: '6.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+dependencies:
+  gip:
+    specifier: ^2.0.0
+    version: 2.0.0
+
+packages:
+
+  /gip@2.0.0:
+    resolution: {integrity: sha512-IwsZjg/RtgpXuE2zMLgzB8bpDHhb5EL+hQBe40EoyEAd/DUIp+oSYiP5GmysutRAK7BR+2rSWLAnLqCP0X1VZw==}
+    engines: {node: '>=18.0.0'}
+    hasBin: true
+    dev: false
