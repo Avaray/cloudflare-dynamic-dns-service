@@ -1,2 +1,4 @@
-# cloudflare-dynamic-dns
- Dynamic DNS for my home Raspberry Pi
+# **CDDS** 🌩 Cloudflare Dynamic DNS Service
+Dynamic DNS Service for your machine.
+
+#
