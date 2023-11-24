@@ -1,7 +1,7 @@
-// https://www.npmjs.com/package/gip
-import gip from 'gip';
-
 import Package from './package.json' assert { type: "json" };
+
+console.log(`Starting Cloudflare Dynamic DNS Service (version ${Package.version})`);
+
 import Config from './config.json' assert { type: "json" };
 
 const config = {
@@ -21,9 +21,7 @@ Config.subdomains.forEach(subdomain => {
   }
 })
 
-// console.log(config);
-
-const apiUrlGetDnsRecords = `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records`;
+const apiUrlGetAllDnsRecords = `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records`;
 const apiUrlUpdateRecord = (recordId) =>  `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records/${recordId}`;
 const apiUrlAddRecord = `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records`;
 const bodyUpdateId = (name) => ({ 'content': config.ip, 'name': name, 'proxied': false, 'type': 'A', 'comment': 'Updated IP', 'tags': [], 'ttl': config.ttl })
@@ -41,17 +39,28 @@ const fetchOptions = (method = 'GET', name = '') => ({
 })
 
 const getDnsRecords = async () => {
-  const response = await fetch(apiUrlGetDnsRecords, fetchOptions('GET'));
+  const response = await fetch(apiUrlGetAllDnsRecords, fetchOptions('GET'));
   return await response.json();
 };
 
-console.log(`Starting Cloudflare Dynamic DNS Service (version ${Package.version})`);
+console.log(`Trying to get existing DNS records list`);
 
-console.log(`Trying to get existing DNS records`);
+const dnsRecordsFound = await getDnsRecords();
+
+console.log(dnsRecordsFound);
 
 process.exit()
 
-console.log(`Looking for existing DNS records`);
+
+if (dnsRecordsFound.result.success && dnsRecordsFound.result.length >= 1) {
+  console.log(`Found ${dnsRecordsFound.result.length} record${dnsRecordsFound.result.length > 1 ? 's' : ''}`);
+} else {
+  console.log(`No records found`);
+}
+
+// console.log(`Looking for ${Object.keys(config.subdomains).length} subdomains in ${dnsRecordsFound.result.length}`);
+
+process.exit()
 
 Object.keys(config.subdomains).forEach(subdomain => {
   const match = dnsRecordsFound.result.find(record => record.name === subdomain);
@@ -61,6 +70,8 @@ Object.keys(config.subdomains).forEach(subdomain => {
     config.subdomains[subdomain].ip = match.content;
   }
 })
+
+process.exit()
 
 // This function will create DNS record for subdomain
 const createRecord = async (name) => {
