@@ -37,7 +37,7 @@ const fetchOptions = (method = 'GET', name = '') => ({
     ...(config.keyType === 'token' && headersToken),
     ...(config.keyType === 'key' && headersGlobalKey),
   },
-  ...((method === 'PUT' || method === 'POST') && { body: bodyUpdateId(name) })
+  ...(method !== 'GET' && { body: bodyUpdateId(name) })
 })
 
 const getDnsRecords = async () => {
