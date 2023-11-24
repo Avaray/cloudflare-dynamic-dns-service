@@ -5,19 +5,11 @@ settings:
   excludeLinksFromLockfile: false
 
 dependencies:
-  dotenv:
-    specifier: ^16.3.1
-    version: 16.3.1
   gip:
     specifier: ^2.0.0
     version: 2.0.0
 
 packages:
-
-  /dotenv@16.3.1:
-    resolution: {integrity: sha512-IPzF4w4/Rd94bA9imS68tZBaYyBWSCE47V1RGuMrB94iyTOIEwRmVL2x/4An+6mETpLrKJ5hQkB8W4kFAadeIQ==}
-    engines: {node: '>=12'}
-    dev: false
 
   /gip@2.0.0:
     resolution: {integrity: sha512-IwsZjg/RtgpXuE2zMLgzB8bpDHhb5EL+hQBe40EoyEAd/DUIp+oSYiP5GmysutRAK7BR+2rSWLAnLqCP0X1VZw==}
