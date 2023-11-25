@@ -22,7 +22,7 @@ Config.subdomains.forEach(subdomain => {
 })
 
 const apiUrlGetAllDnsRecords = `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records`;
-const apiUrlUpdateRecord = (recordId) =>  `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records/${recordId}`;
+const apiUrlUpdateRecord = (recordId = '') => `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records/${recordId}`;
 const apiUrlAddRecord = `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records`;
 const bodyUpdateId = (name) => ({ 'content': config.ip, 'name': name, 'proxied': false, 'type': 'A', 'comment': 'Updated IP', 'tags': [], 'ttl': config.ttl })
 const headersToken = { 'Authorization': `Bearer ${config.key}` }
