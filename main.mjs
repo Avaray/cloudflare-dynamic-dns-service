@@ -1,16 +1,22 @@
+import gip from 'gip';
+import {setTimeout} from 'node:timers/promises'
+
 import Package from './package.json' assert { type: "json" };
 
 console.log(`Starting Cloudflare Dynamic DNS Service (version ${Package.version})`);
 
+console.log(`Loading configs`);
+
 import Config from './config.json' assert { type: "json" };
 
 const config = {
-  ip: '',
+  ip: null,
   ipLastCheck: 0,
   ipCheckIsRunning: false,
   ...Config
 }
 
+// ponizsza linijka czyszcze objekt. kiedys trzeba inaczej to ogarnac
 config.subdomains = {}
 
 Config.subdomains.forEach(subdomain => {
@@ -21,9 +27,21 @@ Config.subdomains.forEach(subdomain => {
   }
 })
 
+for (let i = 0, done = false; done !== true; i++) {
+  config.ip = await gip();
+  if (config.ip) {
+    done = true;
+    (i === 0) ?
+    console.log(`You are connected to internet and your IP address is ${config.ip}`):
+      console.log(`Found external IP address after ${i} retr${i >= 2 ? 'ies' : 'y'}`);
+  } else {
+    i === 0 && process.stdout.write(`Waiting for internet connection`);
+    await setTimeout(5000);
+  }
+}
+
 const apiUrlGetAllDnsRecords = `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records`;
-const apiUrlUpdateRecord = (recordId = '') => `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records/${recordId}`;
-const apiUrlAddRecord = `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records`;
+const apiUrlUpdateAddRecord = (recordId = '') => `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records/${recordId}`;
 const bodyUpdateId = (name) => ({ 'content': config.ip, 'name': name, 'proxied': false, 'type': 'A', 'comment': 'Updated IP', 'tags': [], 'ttl': config.ttl })
 const headersToken = { 'Authorization': `Bearer ${config.key}` }
 const headersGlobalKey = { 'X-Auth-Email': config.email, 'X-Auth-Key': config.key }
@@ -38,21 +56,32 @@ const fetchOptions = (method = 'GET', name = '') => ({
   ...(method !== 'GET' && { body: bodyUpdateId(name) })
 })
 
-const getDnsRecords = async () => {
-  const response = await fetch(apiUrlGetAllDnsRecords, fetchOptions('GET'));
-  return await response.json();
+// 
+const getDnsRecords = async (errors = 0) => {
+  try {
+    const response = await fetch(apiUrlGetAllDnsRecords, fetchOptions('GET'));
+    !response.success && errors++ && Throw (`Error getting DNS records list (${errors >= 2 && `${errors} tries`})`);
+    return await response.json();
+  } catch (error) {
+  }
+  if (errors > 0) setTimeout(5000);
 };
 
 console.log(`Trying to get existing DNS records list`);
 
 const dnsRecordsFound = await getDnsRecords();
 
-console.log(dnsRecordsFound);
+// console.log(dnsRecordsFound.success);
 
-process.exit()
+let dnsRecordsErrors = 0;
+
+if (!dnsRecordsFound.success) {
+  dnsRecordsErrors++;
+  console.log(`Error getting DNS records list (${dnsRecordsErrors >= 2 && `${dnsRecordsErrors} tries`})`);
+}
 
 
-if (dnsRecordsFound.result.success && dnsRecordsFound.result.length >= 1) {
+if (dnsRecordsFound.success && dnsRecordsFound.result.length >= 1) {
   console.log(`Found ${dnsRecordsFound.result.length} record${dnsRecordsFound.result.length > 1 ? 's' : ''}`);
 } else {
   console.log(`No records found`);
@@ -94,7 +123,7 @@ process.exit()
 
 // This function updates record with specific ID
 const updateID = async (id) => {
-  const response = await fetch(apiUrlUpdateRecord(id), fetchOptions('PUT'));
+  const response = await fetch(apiUrlUpdateAddRecord(id), fetchOptions('PUT'));
   return response.json();
 }
 
