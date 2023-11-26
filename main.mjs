@@ -1,5 +1,6 @@
 import gip from 'gip';
 import {setTimeout} from 'node:timers/promises'
+import { ValidateConfig } from './functions.mjs';
 
 import Package from './package.json' assert { type: "json" };
 
@@ -25,10 +26,7 @@ Config.subdomains.forEach(subdomain => {
   }
 })
 
-// validate config file entires
-config.domain.length === 0 && console.log(`Domain name is empty`) && process.exit(1);
-(config.domain.length > 0 && !/[\w\d-]+\.[\w\d]+/.test(config.domain)) && console.log(`Wrong domain name: ${config.domain}`) && process.exit(1);
-// oj trzeba bedzie tu duzo wiecej sprawdzac
+await ValidateConfig(config);
 
 for (let i = 0, done = false; done !== true; i++) {
   config.ip = await gip();
