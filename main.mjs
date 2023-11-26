@@ -13,11 +13,9 @@ const config = {
   ip: null,
   ipLastCheck: 0,
   ipCheckIsRunning: false,
-  ...Config
+  subdomains: {},
+  ...((({ subdomains, ...everything }) => everything)(Config))
 }
-
-// ponizsza linijka czyszcze objekt. kiedys trzeba inaczej to ogarnac
-config.subdomains = {}
 
 Config.subdomains.forEach(subdomain => {
   config.subdomains[`${subdomain}.${config.domain}`] = {
