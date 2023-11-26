@@ -5,7 +5,7 @@ import Package from './package.json' assert { type: "json" };
 
 console.log(`Starting Cloudflare Dynamic DNS Service (version ${Package.version})`);
 
-console.log(`Loading configs`);
+console.log(`Loading configs, setting various things`);
 
 import Config from './config.json' assert { type: "json" };
 
@@ -25,12 +25,17 @@ Config.subdomains.forEach(subdomain => {
   }
 })
 
+// validate config file entires
+config.domain.length === 0 && console.log(`Domain name is empty`) && process.exit(1);
+(config.domain.length > 0 && !/[\w\d-]+\.[\w\d]+/.test(config.domain)) && console.log(`Wrong domain name: ${config.domain}`) && process.exit(1);
+// oj trzeba bedzie tu duzo wiecej sprawdzac
+
 for (let i = 0, done = false; done !== true; i++) {
   config.ip = await gip();
   if (config.ip) {
     done = true;
     (i === 0) ?
-    console.log(`You are connected to internet and your IP address is ${config.ip}`):
+    console.log(`You are connected to internet and your external IP address is ${config.ip}`):
       console.log(`Found external IP address after ${i} retr${i >= 2 ? 'ies' : 'y'}`);
   } else {
     i === 0 && process.stdout.write(`Waiting for internet connection`);
@@ -54,7 +59,7 @@ const fetchOptions = (method = 'GET', name = '') => ({
   ...(method !== 'GET' && { body: bodyUpdateId(name) })
 })
 
-// 
+// moze tutaj nie dawac trycatcha?
 const getDnsRecords = async (errors = 0) => {
   try {
     const response = await fetch(apiUrlGetAllDnsRecords, fetchOptions('GET'));
@@ -62,22 +67,22 @@ const getDnsRecords = async (errors = 0) => {
     return await response.json();
   } catch (error) {
   }
-  if (errors > 0) setTimeout(5000);
-};
-
-console.log(`Trying to get existing DNS records list`);
-
-const dnsRecordsFound = await getDnsRecords();
-
-// console.log(dnsRecordsFound.success);
-
-let dnsRecordsErrors = 0;
-
-if (!dnsRecordsFound.success) {
-  dnsRecordsErrors++;
-  console.log(`Error getting DNS records list (${dnsRecordsErrors >= 2 && `${dnsRecordsErrors} tries`})`);
 }
 
+for (let i = 0, done = false; done !== true; i++) {
+  const dnsRecords = await getDnsRecords();
+  if (dnsRecords.success && dnsRecords.result.length >= 1) {
+    done = true;
+    (i === 0) ?
+    console.log(`Got ${dnsRecords.result.length} record${dnsRecords.result.length > 1 ? 's' : ''}`):
+      console.log(`Got DNS records list after ${i} retr${i >= 2 ? 'ies' : 'y'}`);
+  } else {
+    i === 0 && process.stdout.write(`Trying to get DNS records list from Cloudflare using ${config.keyType === 'token' ? 'API Token' : 'Global API key'}`);
+    await setTimeout(5000);
+  }
+}
+
+process.exit()
 
 if (dnsRecordsFound.success && dnsRecordsFound.result.length >= 1) {
   console.log(`Found ${dnsRecordsFound.result.length} record${dnsRecordsFound.result.length > 1 ? 's' : ''}`);
