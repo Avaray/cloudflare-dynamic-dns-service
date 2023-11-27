@@ -6,8 +6,10 @@ This program is my slightly more complex alternative to services like [No-IP](ht
 The program constantly checks the external [IPv4 address](https://en.wikipedia.org/wiki/Internet_Protocol_version_4). When the address changes, the DNS entries in the [Cloudflare Zones](https://www.cloudflare.com/learning/dns/glossary/dns-zone/) will be updated using [Cloudflare API](https://developers.cloudflare.com/fundamentals/api/). The chosen subdomains will point to your IP address.  
 
 # Config
-Config file is required. You can load config from given path, fetch from given URL.
+Config file is required. You can load config from given path or fetch from given URL. By default program is trying to load `config.json` from 
 
+
+## Create new config file
 If you have `cdds` installed globally you can create new config file with following command. It will create `config.json` file in your **C**urrent **W**orking **D**irectory.
 ```bash
 cdds init
@@ -17,9 +19,23 @@ You can also provide the exact path where the file should be created.
 cdds init "/home/username/configs/"
 ```
 
+<!-- ```bash
+cdds init "/home/username/configs/" --interactive
+``` -->
+
+
+## Load config file from specific directory
+```bash
+cdds --cfg-pth "/home/username/configs/config.json"
+```
+## Load config file from URL
+```bash
+cdds --cfg-url "https://domain.com/directory/config.json"
+```
+
 
 # Example of config file
-```json
+```js
 {
   // (required) Email address associated with your account
   "email": "your@email.com",
