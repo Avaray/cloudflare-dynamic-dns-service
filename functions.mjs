@@ -18,7 +18,7 @@ export const ValidateConfig = async (cfg, issues = []) => {
   cfg.zoneId.length === 0 && issues.push(`You have to specify Zone ID`);
 
   // sprawdzamy czy uzytkownik w ogole podal keyType, ale nie dodajemy do issues
-  cfg.keyType.length === 0 && console.log(`You haven't set the API key type. The key will be treated as a Global API key.`);
+  cfg.keyType.length === 0 && console.log(`You haven't set the API key type. The key will be treated as a Token.`);
 
   // sprawdzamy czy uzytkownik podal prawidlowy typ klucza API.
   (cfg.keyType.length > 0 && !/^(token|key)$/.test(cfg.keyType)) && issues.push(`Invalid API key type. Choose between 'token' and 'key'.`);

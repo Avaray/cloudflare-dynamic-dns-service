@@ -28,6 +28,7 @@ Config.subdomains.forEach(subdomain => {
 
 console.log(`Checking configs`);
 await ValidateConfig(config) && process.exit();
+config.keyType.length === 0 && (config.keyType = 'token');
 
 for (let i = 0, done = false; done !== true; i++) {
   config.ip = await gip();
