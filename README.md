@@ -34,7 +34,7 @@ cdds --cfg-url "https://domain.com/directory/config.json"
 ```
 
 
-# Example of config file
+# Example of `config.json` file
 ```js
 {
   // (required) Email address associated with your account
