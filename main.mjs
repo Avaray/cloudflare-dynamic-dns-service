@@ -6,7 +6,7 @@ import Package from './package.json' assert { type: "json" };
 
 console.log(`Starting Cloudflare Dynamic DNS Service (version ${Package.version})`);
 
-console.log(`Loading configs, setting various things`);
+console.log(`Loading configs`);
 
 import Config from './config.json' assert { type: "json" };
 
@@ -24,9 +24,12 @@ Config.subdomains.forEach(subdomain => {
     id: '',
     updateIsRunning: false,
   }
-})
+});
 
-await ValidateConfig(config);
+(async () => {
+  console.log(`Checking configs`);
+  await ValidateConfig(config) && process.exit();
+})();
 
 for (let i = 0, done = false; done !== true; i++) {
   config.ip = await gip();
