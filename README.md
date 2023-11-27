@@ -1,4 +1,4 @@
-# **CDDS** ![](https://api.iconify.design/logos:cloudflare-icon.svg height="400") Cloudflare Dynamic DNS Service
+# **CDDS** ![](https://api.iconify.design/logos:cloudflare-icon.svg) Cloudflare Dynamic DNS Service
 This program is my slightly more complex alternative to services like [No-IP](http://www.noip.com/), [Dynu](http://www.dynu.com/), [CouDNS](https://www.cloudns.net/), etc. It can be useful when you don't have a static IP address, and you would like to always connect to the same address in situations like:
 - You have a Raspberry Pi at home, and you want to connect to it while eating kebab in the city.
 - You're hosting a game server on a machine, or you simply want to play an older cooperative game with friends that requires connecting through an IP. It's much simpler to provide an address like `play.domain.com` than an IPv4 address.
