@@ -26,10 +26,8 @@ Config.subdomains.forEach(subdomain => {
   }
 });
 
-(async () => {
-  console.log(`Checking configs`);
-  await ValidateConfig(config) && process.exit();
-})();
+console.log(`Checking configs`);
+await ValidateConfig(config) && process.exit();
 
 for (let i = 0, done = false; done !== true; i++) {
   config.ip = await gip();
