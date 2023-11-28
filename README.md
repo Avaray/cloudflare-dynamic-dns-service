@@ -102,5 +102,8 @@ You have several ways to use this program.
 
 # Future plans
 
+- [Python](https://www.python.org/) port
 - [Micropython](https://micropython.org/) port
-- [GUI](https://en.wikipedia.org/wiki/Graphical_user_interface) app for Windows (and maybe Linux)
+- One of those:
+  - [GUI](https://en.wikipedia.org/wiki/Graphical_user_interface) interfece for Windows and Linux using [Neutralino.JS + React](https://neutralino.js.org/docs/getting-started/using-frontend-libraries)
+  - [GUI](https://en.wikipedia.org/wiki/Graphical_user_interface) app for Windows using [.Net WPF C#](https://learn.microsoft.com/en-us/visualstudio/get-started/csharp/tutorial-wpf?view=vs-2022#what-is-wpf) (need to create entire app from scratch)
