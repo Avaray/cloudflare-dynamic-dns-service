@@ -1,5 +1,5 @@
 import gip from 'gip';
-import {setTimeout} from 'node:timers/promises'
+import { setTimeout } from 'node:timers/promises'
 import { ValidateConfig } from './functions.mjs';
 
 import Package from './package.json' assert { type: "json" };
