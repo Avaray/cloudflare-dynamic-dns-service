@@ -11,6 +11,7 @@ console.log(`Loading configs`);
 
 const Config = {};
 
+// pomyslec nad domyslnymi wartosciami dla kluczy, ktore nie sa wymagane.
 try {
   Config.email = process.env.CDDS_EMAIL;
   Config.key = process.env.CDDS_KEY;
@@ -85,7 +86,6 @@ const fetchOptions = (method = 'GET', name = '') => ({
   ...(method !== 'GET' && { body: bodyUpdateId(name) }),
 });
 
-// moze tutaj nie dawac trycatcha?
 const getDnsRecords = async (errors = 0) => {
   try {
     const response = await fetch(apiUrlGetAllDnsRecords, fetchOptions('GET'));
