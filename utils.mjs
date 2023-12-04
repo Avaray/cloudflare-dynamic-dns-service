@@ -16,7 +16,7 @@ export const ValidateConfig = async (cfg, issues = []) => {
   cfg.key.length === 0 && issues.push(`You have to set API key`);
 
   // sprawdzamy czy uzytkownik podal Zone ID.
-  cfg.zoneId.length === 0 && issues.push(`You have to specify Zone ID`);
+  !cfg.zoneId.length && issues.push(`You have to specify Zone ID`);
 
   // sprawdzamy czy uzytkownik w ogole podal keyType, ale nie dodajemy do issues
   cfg.keyType.length === 0 && console.log(`You haven't set the API key type. The key will be treated as a Token.`);
