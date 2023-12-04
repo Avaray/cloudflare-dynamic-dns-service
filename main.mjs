@@ -9,16 +9,21 @@ console.log(`Starting Cloudflare Dynamic DNS Service (version ${Package.version}
 
 console.log(`Loading configs`);
 
-const Config = {
-  email: process.env.CDDS_EMAIL,
-  key: process.env.CDDS_KEY,
-  keyType: process.env.CDDS_KEY_TYPE,
-  domain: process.env.CDDS_DOMAIN,
-  subdomains: JSON.parse(process.env.CDDS_SUBDOMAINS),
-  zoneId: process.env.CDDS_ZONE_ID,
-  ttl: Number(process.env.CDDS_TTL),
-  logs: JSON.parse(process.env.CDDS_LOGS),
-};
+const Config = {};
+
+try {
+  Config.email = process.env.CDDS_EMAIL;
+  Config.key = process.env.CDDS_KEY;
+  Config.keyType = process.env.CDDS_KEY_TYPE;
+  Config.domain = process.env.CDDS_DOMAIN;
+  Config.subdomains = JSON.parse(process.env.CDDS_SUBDOMAINS);
+  Config.zoneId = process.env.CDDS_ZONE_ID;
+  Config.ttl = Number(process.env.CDDS_TTL);
+  Config.logs = JSON.parse(process.env.CDDS_LOGS);
+} catch (error) {
+  console.log(`Can't parse Config`, error);
+  process.exit();
+}
 
 const config = {
   ip: null,
