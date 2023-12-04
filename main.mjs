@@ -21,7 +21,9 @@ try {
   Config.ttl = Number(process.env.CDDS_TTL);
   Config.logs = JSON.parse(process.env.CDDS_LOGS);
 } catch (error) {
-  console.log(`Can't read environment variables. Please check your .env file and restart the service.`);
+  console.log(
+    `Can't read environment variables. Please check your environment variables or your .env file and restart the service.`,
+  );
   process.exit();
 }
 
