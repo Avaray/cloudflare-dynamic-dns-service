@@ -94,13 +94,18 @@ const getDnsRecords = async (errors = 0) => {
   } catch (error) {}
 };
 
+// POPRAWIC CALA LOGIKE OD TEGO MIEJSCA DO PROCESS.EXIT
+
+let dnsRecords = [];
+
 for (let i = 0, done = false; done !== true; i++) {
-  const dnsRecords = await getDnsRecords();
-  if (dnsRecords.success && dnsRecords.result.length >= 1) {
+  const dnsRecordsFound = await getDnsRecords();
+  if (dnsRecordsFound.success && dnsRecordsFound.result.length >= 1) {
     done = true;
     i === 0
-      ? console.log(`Got ${dnsRecords.result.length} record${dnsRecords.result.length > 1 ? 's' : ''}`)
+      ? console.log(`Got ${dnsRecordsFound.result.length} record${dnsRecordsFound.result.length > 1 ? 's' : ''}`)
       : console.log(`Got DNS records list after ${i} retr${i >= 2 ? 'ies' : 'y'}`);
+    dnsRecords = dnsRecordsFound;
   } else {
     i === 0 &&
       process.stdout.write(
@@ -112,20 +117,8 @@ for (let i = 0, done = false; done !== true; i++) {
   }
 }
 
-process.exit();
-
-if (dnsRecordsFound.success && dnsRecordsFound.result.length >= 1) {
-  console.log(`Found ${dnsRecordsFound.result.length} record${dnsRecordsFound.result.length > 1 ? 's' : ''}`);
-} else {
-  console.log(`No records found`);
-}
-
-// console.log(`Looking for ${Object.keys(config.subdomains).length} subdomains in ${dnsRecordsFound.result.length}`);
-
-process.exit();
-
 Object.keys(config.subdomains).forEach((subdomain) => {
-  const match = dnsRecordsFound.result.find((record) => record.name === subdomain);
+  const match = dnsRecords.find((record) => record.name === subdomain);
   if (match) {
     console.log(`Found ${subdomain} in DNS records`);
     config.subdomains[subdomain].id = match.id;
