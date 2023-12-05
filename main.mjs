@@ -150,34 +150,30 @@ for (const subdomain of subdomains) {
 console.log(`Cloudflare Dynamic DNS Service is running and waiting for IP address change`);
 
 // jakos lepiej wylapywac bledy w tej funkcji. albo dac trycatch na calosc, albo...
-(async function () {
-  while (true) {
-    const ip = '';
+(async function check() {
+  const ip = '';
 
-    try {
-      ip = await gip();
-    } catch (error) {
-      continue;
-    }
+  try {
+    ip = await gip();
+  } catch (error) {}
 
-    if (ip !== config.ip) {
-      console.log(`IP address changed from ${config.ip} to ${ip}`);
-      config.ip = ip;
-      for (const subdomain of subdomains) {
-        if (config.subdomains[subdomain].id && config.subdomains[subdomain].ip !== ip) {
-          console.log(`Updating ${subdomain} DNS record`);
-          const response = await fetch(
-            apiUrlUpdateAddRecord(config.subdomains[subdomain].id),
-            fetchOptions('PUT', subdomain),
-          );
-          const json = await response.json();
-          if (json.success) {
-            config.subdomains[subdomain].ip = ip;
-          }
-        } else {
+  if (ip && ip !== config.ip) {
+    console.log(`IP address changed from ${config.ip} to ${ip}`);
+    config.ip = ip;
+    for (const subdomain of subdomains) {
+      if (config.subdomains[subdomain].id && config.subdomains[subdomain].ip !== ip) {
+        console.log(`Updating ${subdomain} DNS record`);
+        const response = await fetch(
+          apiUrlUpdateAddRecord(config.subdomains[subdomain].id),
+          fetchOptions('PUT', subdomain),
+        );
+        const json = await response.json();
+        if (json.success) {
+          config.subdomains[subdomain].ip = ip;
         }
       }
     }
-    await setTimeout(5000);
   }
+  await setTimeout(5000);
+  check();
 })();
