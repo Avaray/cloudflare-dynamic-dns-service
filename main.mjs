@@ -143,7 +143,31 @@ for (const subdomain of subdomains) {
       continue;
     } else {
       const response = await createRecord(subdomain);
-      console.log(response);
     }
   }
 }
+
+console.log(`Cloudflare Dynamic DNS Service is running and waiting for IP address change`);
+
+(async function () {
+  while (true) {
+    const ip = await gip();
+    if (ip !== config.ip) {
+      console.log(`IP address changed from ${config.ip} to ${ip}`);
+      config.ip = ip;
+      for (const subdomain of subdomains) {
+        if (config.subdomains[subdomain].id && config.subdomains[subdomain].ip !== ip) {
+          console.log(`Updating ${subdomain} DNS record`);
+          const response = await fetch(
+            apiUrlUpdateAddRecord(config.subdomains[subdomain].id),
+            fetchOptions('PUT', subdomain),
+          );
+          const json = await response.json();
+          console.log(json);
+        } else {
+        }
+      }
+    }
+    await setTimeout(5000);
+  }
+})();
