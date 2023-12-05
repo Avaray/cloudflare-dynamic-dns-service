@@ -62,8 +62,10 @@ for (let i = 0, done = false; done !== true; i++) {
 }
 
 const apiUrlGetAllDnsRecords = `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records`;
+
 const apiUrlUpdateAddRecord = (recordId = '') =>
   `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records/${recordId}`;
+
 const bodyUpdateId = (name) => ({
   content: config.ip,
   name: name,
@@ -83,7 +85,7 @@ const fetchOptions = (method = 'GET', name = '') => ({
     ...(config.keyType === 'token' && headersToken),
     ...(config.keyType === 'key' && headersGlobalKey),
   },
-  ...(method !== 'GET' && { body: bodyUpdateId(name) }),
+  ...(method !== 'GET' && { body: JSON.stringify(bodyUpdateId(name)) }),
 });
 
 const getDnsRecords = async (errors = 0) => {
@@ -94,18 +96,16 @@ const getDnsRecords = async (errors = 0) => {
   } catch (error) {}
 };
 
-// POPRAWIC CALA LOGIKE OD TEGO MIEJSCA DO PROCESS.EXIT
-
 let dnsRecords = [];
 
 for (let i = 0, done = false; done !== true; i++) {
   const dnsRecordsFound = await getDnsRecords();
-  if (dnsRecordsFound.success && dnsRecordsFound.result.length >= 1) {
+  if (dnsRecordsFound.success && dnsRecordsFound.result.length > 0) {
     done = true;
     i === 0
       ? console.log(`Got ${dnsRecordsFound.result.length} record${dnsRecordsFound.result.length > 1 ? 's' : ''}`)
       : console.log(`Got DNS records list after ${i} retr${i >= 2 ? 'ies' : 'y'}`);
-    dnsRecords = dnsRecordsFound;
+    dnsRecords = dnsRecordsFound.result;
   } else {
     i === 0 &&
       process.stdout.write(
@@ -126,31 +126,24 @@ Object.keys(config.subdomains).forEach((subdomain) => {
   }
 });
 
-process.exit();
-
-// This function will create DNS record for subdomain
 const createRecord = async (name) => {
   console.log(`Trying to create DNS record for ${name}`);
-  const response = await fetch(apiUrlAddRecord, fetchOptions('PUT', name));
-  console.log(await response.json());
-  // return response.json();
+  const response = await fetch(apiUrlUpdateAddRecord(), fetchOptions('POST', name));
+  return await response.json();
 };
 
-Object.keys(config.subdomains).forEach(async (subdomain) => {
+const subdomains = Object.keys(config.subdomains);
+
+for (const subdomain of subdomains) {
   if (!config.subdomains[subdomain].id) {
     console.log(`Subdomain ${subdomain} not found in DNS records`);
-    const response = await createRecord(subdomain);
-    // console.log(response);
+
+    if (config.keyType === 'token') {
+      console.log(`You have to set Global API key to create DNS record for ${subdomain}`);
+      continue;
+    } else {
+      const response = await createRecord(subdomain);
+      console.log(response);
+    }
   }
-});
-
-process.exit();
-
-// This function updates record with specific ID
-const updateID = async (id) => {
-  const response = await fetch(apiUrlUpdateAddRecord(id), fetchOptions('PUT'));
-  return response.json();
-};
-
-// Calculate time from last IP check
-const ipCheckTimeDiff = (date1 = 0, date2 = Date.now()) => Math.floor(Math.abs(date1 - date2) / 1000);
+}
