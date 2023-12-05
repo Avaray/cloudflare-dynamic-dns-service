@@ -3,9 +3,9 @@ import gip from 'gip';
 import { setTimeout } from 'node:timers/promises';
 import { ValidateConfig } from './utils.mjs';
 
-import Package from './package.json' assert { type: 'json' };
-
-console.log(`Starting Cloudflare Dynamic DNS Service (version ${Package.version})`);
+// import Package from './package.json' assert { type: 'json' };
+// console.log(`Starting Cloudflare Dynamic DNS Service (version ${Package.version})`);
+console.log(`Starting Cloudflare Dynamic DNS Service`);
 
 console.log(`Loading configs`);
 
@@ -149,9 +149,17 @@ for (const subdomain of subdomains) {
 
 console.log(`Cloudflare Dynamic DNS Service is running and waiting for IP address change`);
 
+// jakos lepiej wylapywac bledy w tej funkcji. albo dac trycatch na calosc, albo...
 (async function () {
   while (true) {
-    const ip = await gip();
+    const ip = '';
+
+    try {
+      ip = await gip();
+    } catch (error) {
+      continue;
+    }
+
     if (ip !== config.ip) {
       console.log(`IP address changed from ${config.ip} to ${ip}`);
       config.ip = ip;
@@ -163,7 +171,9 @@ console.log(`Cloudflare Dynamic DNS Service is running and waiting for IP addres
             fetchOptions('PUT', subdomain),
           );
           const json = await response.json();
-          console.log(json);
+          if (json.success) {
+            config.subdomains[subdomain].ip = ip;
+          }
         } else {
         }
       }
