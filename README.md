@@ -1,21 +1,30 @@
 # **CDDS** ![](https://api.iconify.design/logos:cloudflare-icon.svg) Cloudflare Dynamic DNS Service
 
 This program is my **slightly more complex alternative** to services like [No-IP](http://www.noip.com/), [Dynu](http://www.dynu.com/), [CouDNS](https://www.cloudns.net/), etc. It can be useful **when you don't have a static IP address**, and you would like to always connect to the same address in situations like:
+
 - You have a Raspberry Pi at home, and you want to connect to it while eating kebab in the city.
 - You want to play an older cooperative game with friends that requires connecting through an IP. It's much simpler to provide an address like `play.domain.com` than an IPv4 address. No need to provide a new IP address for the next sessions.
 
-The program constantly checks the external [IPv4 address](https://en.wikipedia.org/wiki/Internet_Protocol_version_4). When the address changes, the DNS entries in the [Cloudflare Zones](https://www.cloudflare.com/learning/dns/glossary/dns-zone/) will be updated using [Cloudflare API](https://developers.cloudflare.com/fundamentals/api/). The chosen subdomains will point to your IP address.  
+The program constantly checks the external [IPv4 address](https://en.wikipedia.org/wiki/Internet_Protocol_version_4). When the address changes, the DNS entries in the [Cloudflare Zones](https://www.cloudflare.com/learning/dns/glossary/dns-zone/) will be updated using [Cloudflare API](https://developers.cloudflare.com/fundamentals/api/). The chosen subdomains will point to your IP address.
 
 # Installation
 
 Global installation using [NPM](https://docs.npmjs.com/cli/v10/commands/npm-install)
+
 ```bash
 npm i -g cdds
 ```
 
 Global installation using [PNPM](https://pnpm.io/pnpm-cli#commands)
+
 ```bash
 pnpm add -g cdds
+```
+
+Global installation using [BUN](https://bun.sh/docs/cli/install)
+
+```bash
+bun i -g cdds
 ```
 
 # Config
@@ -31,6 +40,7 @@ cdds init
 ```
 
 You can also provide the exact path where the file should be created.
+
 ```bash
 cdds init "/home/username/configs/"
 ```
@@ -58,7 +68,7 @@ cdds --cfg-url "https://domain.com/directory/config.json"
   // (required) Email address associated with your account
   "email": "your@email.com",
 
-  // (required) API key 
+  // (required) API key
   "key": "y89qAiC3X1-3GG3MSo1PbB33Xjz3Rbfmi69-0j42",
 
   // (optional) API key type. For security reasons, "token" is the default value
@@ -83,6 +93,7 @@ cdds --cfg-url "https://domain.com/directory/config.json"
 # Usage
 
 You have several ways to use this program.
+
 <!-- need to write them -->
 
 # Requirements
@@ -92,7 +103,7 @@ You have several ways to use this program.
 - [API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) or [Global API key](https://developers.cloudflare.com/fundamentals/api/get-started/keys/)
 - Knowledge of [DNS Zone ID](https://developers.cloudflare.com/fundamentals/setup/find-account-and-zone-ids/)
 - [**Node.js**](https://nodejs.org/en/download) (version **18.0.0** or higher) and package manager like [PNPM](https://pnpm.io/) or [NPM](https://docs.npmjs.com/cli/)
-- Any process manager (like [systemd.service](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html) or [pm2](https://pm2.keymetrics.io/)), which will allow you to maintain a running program 
+- Any process manager (like [systemd.service](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html) or [pm2](https://pm2.keymetrics.io/)), which will allow you to maintain a running program
 - [Ports forwarded](https://en.wikipedia.org/wiki/Port_forwarding) to your machine.
 
 # Limitations of this program
