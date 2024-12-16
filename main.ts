@@ -1,7 +1,8 @@
-import 'dotenv/config';
-import gip from 'gip';
-import { setTimeout } from 'node:timers/promises';
-import { ValidateConfig } from './utils.mjs';
+import process from "node:process";
+import "dotenv/config";
+import gip from "gip";
+import { setTimeout } from "node:timers/promises";
+import { ValidateConfig } from "./utils.mjs";
 
 // import Package from './package.json' assert { type: 'json' };
 // console.log(`Starting Cloudflare Dynamic DNS Service (version ${Package.version})`);
@@ -38,15 +39,15 @@ const config = {
 
 Config.subdomains.forEach((subdomain) => {
   config.subdomains[`${subdomain}.${config.domain}`] = {
-    ip: '',
-    id: '',
+    ip: "",
+    id: "",
     updateIsRunning: false,
   };
 });
 
 console.log(`Checking configs`);
 (await ValidateConfig(config)) && process.exit();
-config.keyType.length === 0 && (config.keyType = 'token');
+config.keyType.length === 0 && (config.keyType = "token");
 
 for (let i = 0, done = false; done !== true; i++) {
   config.ip = await gip();
@@ -54,7 +55,7 @@ for (let i = 0, done = false; done !== true; i++) {
     done = true;
     i === 0
       ? console.log(`You are connected to internet and your external IP address is ${config.ip}`)
-      : console.log(`Found external IP address after ${i} retr${i >= 2 ? 'ies' : 'y'}`);
+      : console.log(`Found external IP address after ${i} retr${i >= 2 ? "ies" : "y"}`);
   } else {
     i === 0 && process.stdout.write(`Waiting for internet connection`);
     await setTimeout(5000);
@@ -63,34 +64,33 @@ for (let i = 0, done = false; done !== true; i++) {
 
 const apiUrlGetAllDnsRecords = `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records`;
 
-const apiUrlUpdateAddRecord = (recordId = '') =>
-  `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records/${recordId}`;
+const apiUrlUpdateAddRecord = (recordId = "") => `https://api.cloudflare.com/client/v4/zones/${config.zoneId}/dns_records/${recordId}`;
 
 const bodyUpdateId = (name) => ({
   content: config.ip,
   name: name,
   proxied: false,
-  type: 'A',
-  comment: 'Updated IP',
+  type: "A",
+  comment: "Updated IP",
   tags: [],
   ttl: config.ttl,
 });
 const headersToken = { Authorization: `Bearer ${config.key}` };
-const headersGlobalKey = { 'X-Auth-Email': config.email, 'X-Auth-Key': config.key };
+const headersGlobalKey = { "X-Auth-Email": config.email, "X-Auth-Key": config.key };
 
-const fetchOptions = (method = 'GET', name = '') => ({
+const fetchOptions = (method = "GET", name = "") => ({
   method: String(method).toUpperCase(),
   headers: {
-    'Content-Type': 'application/json',
-    ...(config.keyType === 'token' && headersToken),
-    ...(config.keyType === 'key' && headersGlobalKey),
+    "Content-Type": "application/json",
+    ...(config.keyType === "token" && headersToken),
+    ...(config.keyType === "key" && headersGlobalKey),
   },
-  ...(method !== 'GET' && { body: JSON.stringify(bodyUpdateId(name)) }),
+  ...(method !== "GET" && { body: JSON.stringify(bodyUpdateId(name)) }),
 });
 
 const getDnsRecords = async (errors = 0) => {
   try {
-    const response = await fetch(apiUrlGetAllDnsRecords, fetchOptions('GET'));
+    const response = await fetch(apiUrlGetAllDnsRecords, fetchOptions("GET"));
     !response.success && errors++ && Throw(`Error getting DNS records list (${errors >= 2 && `${errors} tries`})`);
     return await response.json();
   } catch (error) {}
@@ -103,15 +103,13 @@ for (let i = 0, done = false; done !== true; i++) {
   if (dnsRecordsFound.success && dnsRecordsFound.result.length > 0) {
     done = true;
     i === 0
-      ? console.log(`Got ${dnsRecordsFound.result.length} record${dnsRecordsFound.result.length > 1 ? 's' : ''}`)
-      : console.log(`Got DNS records list after ${i} retr${i >= 2 ? 'ies' : 'y'}`);
+      ? console.log(`Got ${dnsRecordsFound.result.length} record${dnsRecordsFound.result.length > 1 ? "s" : ""}`)
+      : console.log(`Got DNS records list after ${i} retr${i >= 2 ? "ies" : "y"}`);
     dnsRecords = dnsRecordsFound.result;
   } else {
     i === 0 &&
       process.stdout.write(
-        `Trying to get DNS records list from Cloudflare using ${
-          config.keyType === 'token' ? 'API Token' : 'Global API key'
-        }`,
+        `Trying to get DNS records list from Cloudflare using ${config.keyType === "token" ? "API Token" : "Global API key"}`,
       );
     await setTimeout(5000);
   }
@@ -128,7 +126,7 @@ Object.keys(config.subdomains).forEach((subdomain) => {
 
 const createRecord = async (name) => {
   console.log(`Trying to create DNS record for ${name}`);
-  const response = await fetch(apiUrlUpdateAddRecord(), fetchOptions('POST', name));
+  const response = await fetch(apiUrlUpdateAddRecord(), fetchOptions("POST", name));
   return await response.json();
 };
 
@@ -138,7 +136,7 @@ for (const subdomain of subdomains) {
   if (!config.subdomains[subdomain].id) {
     console.log(`Subdomain ${subdomain} not found in DNS records`);
 
-    if (config.keyType === 'token') {
+    if (config.keyType === "token") {
       console.log(`You have to set Global API key to create DNS record for ${subdomain}`);
       continue;
     } else {
@@ -151,7 +149,7 @@ console.log(`Cloudflare Dynamic DNS Service is running and waiting for IP addres
 
 // jakos lepiej wylapywac bledy w tej funkcji. albo dac trycatch na calosc, albo...
 (async function check() {
-  const ip = '';
+  const ip = "";
 
   try {
     ip = await gip();
@@ -165,7 +163,7 @@ console.log(`Cloudflare Dynamic DNS Service is running and waiting for IP addres
         console.log(`Updating ${subdomain} DNS record`);
         const response = await fetch(
           apiUrlUpdateAddRecord(config.subdomains[subdomain].id),
-          fetchOptions('PUT', subdomain),
+          fetchOptions("PUT", subdomain),
         );
         const json = await response.json();
         if (json.success) {
