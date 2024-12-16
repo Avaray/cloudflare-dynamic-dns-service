@@ -37,7 +37,7 @@ pnpm add -g cdds
 
 # Config
 
-Config file is required. You can load it from given path or fetch from URL. By default program is trying to load `config.json` from **C**urrent **W**orking **D**irectory.
+By default `CDDS` is trying to load `.env` file from **C**urrent **W**orking **D**irectory.
 
 ## Create new config file
 
