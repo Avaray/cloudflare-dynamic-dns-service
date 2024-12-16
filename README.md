@@ -7,24 +7,24 @@ This program is my **slightly more complex alternative** to services like [No-IP
 
 The program constantly checks the external [IPv4 address](https://en.wikipedia.org/wiki/Internet_Protocol_version_4). When the address changes, the DNS entries in the [Cloudflare Zones](https://www.cloudflare.com/learning/dns/glossary/dns-zone/) will be updated using [Cloudflare API](https://developers.cloudflare.com/fundamentals/api/). The chosen subdomains will point to your IP address.
 
-# Installation
+## [CLI](https://en.wikipedia.org/wiki/Command-line_interface) installation
 
-Global installation using [NPM](https://docs.npmjs.com/cli/v10/commands/npm-install)
+[NPM](https://docs.npmjs.com/downloading-and-installing-packages-globally)
 
 ```bash
 npm i -g cdds
 ```
 
-Global installation using [PNPM](https://pnpm.io/pnpm-cli#commands)
-
-```bash
-pnpm add -g cdds
-```
-
-Global installation using [BUN](https://bun.sh/docs/cli/install)
+[BUN](https://bun.sh/docs/cli/install#global-packages)
 
 ```bash
 bun i -g cdds
+```
+
+[DENO](https://docs.deno.com/runtime/reference/cli/install/#global-installation)
+
+```bash
+deno i -g npm:cdds
 ```
 
 # Config
