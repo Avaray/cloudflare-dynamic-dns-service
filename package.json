@@ -1,5 +1,6 @@
 {
   "name": "cloudflare-dynamic-dns",
+  "displayName": "Cloudflare Dynamic DNS Service",
   "version": "1.0.0",
   "description": "",
   "main": "main.ts",
