@@ -111,10 +111,13 @@ You have several ways to use this program.
 - [Ipv4](https://en.wikipedia.org/wiki/Internet_Protocol_version_4) is the only protocol supported
 - Cloudflare have [1200 API calls limit](https://developers.cloudflare.com/fundamentals/api/reference/limits/) per 5 minutes
 
-# Future plans
+<!-- # Future plans
 
 - [Python](https://www.python.org/) port
 - [Micropython](https://micropython.org/) port
 - One of those:
-  - [GUI](https://en.wikipedia.org/wiki/Graphical_user_interface) interfece for Windows and Linux using [Neutralino.JS + React](https://neutralino.js.org/docs/getting-started/using-frontend-libraries)
-  - [GUI](https://en.wikipedia.org/wiki/Graphical_user_interface) app for Windows using [.Net WPF C#](https://learn.microsoft.com/en-us/visualstudio/get-started/csharp/tutorial-wpf?view=vs-2022#what-is-wpf) (need to create entire app from scratch)
+  - [GUI](https://en.wikipedia.org/wiki/Graphical_user_interface) interfece for Windows and Linux using
+    [Neutralino.JS + React](https://neutralino.js.org/docs/getting-started/using-frontend-libraries)
+  - [GUI](https://en.wikipedia.org/wiki/Graphical_user_interface) app for Windows using
+    [.Net WPF C#](https://learn.microsoft.com/en-us/visualstudio/get-started/csharp/tutorial-wpf?view=vs-2022#what-is-wpf) (need to create
+    entire app from scratch) -->
