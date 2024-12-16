@@ -84,10 +84,13 @@ You have several ways to use this program.
 
 - [**Cloudflare account**](https://dash.cloudflare.com/sign-up)
 - [Added Website](https://developers.cloudflare.com/fundamentals/setup/account-setup/add-site/)
-- [API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) or [Global API key](https://developers.cloudflare.com/fundamentals/api/get-started/keys/)
+- [API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) or
+  [Global API key](https://developers.cloudflare.com/fundamentals/api/get-started/keys/)
 - Knowledge of [DNS Zone ID](https://developers.cloudflare.com/fundamentals/setup/find-account-and-zone-ids/)
-- [**Node.js**](https://nodejs.org/en/download) (version **18.0.0** or higher) and package manager like [PNPM](https://pnpm.io/) or [NPM](https://docs.npmjs.com/cli/)
-- Any process manager (like [systemd.service](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html) or [pm2](https://pm2.keymetrics.io/)), which will allow you to maintain a running program
+- [**Node.js**](https://nodejs.org/en/download) (version **18.0.0** or higher) and package manager like [PNPM](https://pnpm.io/) or
+  [NPM](https://docs.npmjs.com/cli/)
+- Any process manager (like [systemd.service](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html) or
+  [pm2](https://pm2.keymetrics.io/)), which will allow you to maintain a running program
 - [Ports forwarded](https://en.wikipedia.org/wiki/Port_forwarding) to your machine.
 
 # Limitations of this program
