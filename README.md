@@ -108,8 +108,8 @@ You have several ways to use this program.
 
 # Limitations of this program
 
-- [Ipv4](https://en.wikipedia.org/wiki/Internet_Protocol_version_4) is the only protocol supported
-- Cloudflare have [1200 API calls limit](https://developers.cloudflare.com/fundamentals/api/reference/limits/) per 5 minutes
+- [IPv4](https://en.wikipedia.org/wiki/Internet_Protocol_version_4) is the only protocol supported.
+- Cloudflare has [1200 API calls limit](https://developers.cloudflare.com/fundamentals/api/reference/limits/) per 5 minutes.
 
 <!-- # Future plans
 
