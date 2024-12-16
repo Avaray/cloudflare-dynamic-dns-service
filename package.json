@@ -10,7 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "dotenv": "^16.3.1",
-    "gip": "^2.0.0"
+    "dotenv": "^16.4.7",
+    "gip": "^3.0.2"
   }
 }
