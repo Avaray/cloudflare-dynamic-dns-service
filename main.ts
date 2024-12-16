@@ -152,7 +152,7 @@ console.log(`Cloudflare Dynamic DNS Service is running and waiting for IP addres
   const ip = "";
 
   try {
-    ip = await gip();
+    ip = await gip({ ensure: 5 });
   } catch (error) {}
 
   if (ip && ip !== config.ip) {
