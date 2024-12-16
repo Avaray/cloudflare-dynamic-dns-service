@@ -2,10 +2,12 @@ import process from "node:process";
 import "dotenv/config";
 import gip from "gip";
 import { setTimeout } from "node:timers/promises";
+import { ValidateConfig } from "./utils.ts";
+import Package from "./package.json" with { type: "json" };
 
 // import Package from './package.json' assert { type: 'json' };
 // console.log(`Starting Cloudflare Dynamic DNS Service (version ${Package.version})`);
-console.log(`Starting Cloudflare Dynamic DNS Service`);
+console.log(`Starting ${Package.displayName} v${Package.version}`);
 
 console.log(`Loading configs`);
 import { ValidateConfig } from "./utils.ts";
