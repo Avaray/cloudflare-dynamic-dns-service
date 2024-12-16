@@ -27,6 +27,14 @@ bun i -g cdds
 deno i -g npm:cdds
 ```
 
+[PNPM](https://pnpm.io/cli/add#--global--g)
+
+```bash
+pnpm add -g cdds
+```
+
+<!-- ## [CLI](https://en.wikipedia.org/wiki/Command-line_interface) usage without installation -->
+
 # Config
 
 Config file is required. You can load it from given path or fetch from URL. By default program is trying to load `config.json` from **C**urrent **W**orking **D**irectory.
