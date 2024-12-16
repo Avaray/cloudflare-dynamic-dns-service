@@ -69,35 +69,6 @@ cdds --cfg-path "/home/username/configs/config.json"
 cdds --cfg-url "https://domain.com/directory/config.json"
 ```
 
-# Example of `config.json` file
-
-```js
-{
-  // (required) Email address associated with your account
-  "email": "your@email.com",
-
-  // (required) API key
-  "key": "y89qAiC3X1-3GG3MSo1PbB33Xjz3Rbfmi69-0j42",
-
-  // (optional) API key type. For security reasons, "token" is the default value
-  "keyType": "token",
-
-  // (required) Domain to be used for subdomains
-  "domain": "domain.com",
-
-  // (required) List of subdomains you wan't to use with domain
-  "subdomains": ["dynamic", "private"],
-
-  // (required) Zone ID
-  // https://developers.cloudflare.com/fundamentals/setup/find-account-and-zone-ids/
-  "zoneId": "201d8018ui3c1f9cb81590ec8194784d",
-
-  // (optional) TTL, one minute as default value
-  // https://en.wikipedia.org/wiki/Time_to_live
-  "ttl": 60
-}
-```
-
 # Usage
 
 You have several ways to use this program.
