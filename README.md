@@ -1,5 +1,7 @@
 # **CDDS** ![](https://api.iconify.design/logos:cloudflare-icon.svg) Cloudflare Dynamic DNS Service
 
+**WARNING** - This script is still in development.
+
 Created for [Cloudflare](https://cloudflare.com) users who want to use their own
 [subdomains](https://en.wikipedia.org/wiki/Subdomain) (or
 [domains](https://en.wikipedia.org/wiki/Domain_name)) for dynamic DNS.
