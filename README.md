@@ -15,19 +15,20 @@
 | **CDDS_LOGS**           | Enable logging to console (`true` or `false`, default `true`).                                                                              |
 | **CDDS_IP_LOGFILE**     | Enable IP logging. If `true`, new IP will be logged to `cdds.log` file in the current directory. You can specify path to directory or file. |
 
-<details>
-  <summary>Example configuration</summary>
-    CDDS_API_KEY=ada33c3hub7e14b593e180uuu734331131d65
-    CDDS_API_KEY_TYPE=key
-    CDDS_EMAIL=johndoe@example.com
-    CDDS_TARGET=
-    CDDS_TARGETS=web.example.com,server.example.com
-    CDDS_ZONE_ID=802e9018cb3c1e9cb12360ec8442981d
-    CDDS_TTL=60
-    CDDS_CHECK_INTERVAL=1
-    CDDS_LOGS=true
-    CDDS_IP_LOGFILE=true
-</details>
+### Example configuration
+
+```bash
+CDDS_API_KEY=ada33c3hub7e14b593e180uuu734331131d65
+CDDS_API_KEY_TYPE=key
+CDDS_EMAIL=johndoe@example.com
+CDDS_TARGET=
+CDDS_TARGETS=web.example.com,server.example.com
+CDDS_ZONE_ID=802e9018cb3c1e9cb12360ec8442981d
+CDDS_TTL=60
+CDDS_CHECK_INTERVAL=1
+CDDS_LOGS=true
+CDDS_IP_LOGFILE=true
+```
 
 ## Requirements
 
