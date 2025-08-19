@@ -1,0 +1,35 @@
+{
+  "name": "cdds",
+  "version": "1.0.0",
+  "description": "Cloudflare Dynamic DNS Service for JavaScript runtimes like Deno or Bun",
+  "type": "module",
+  "main": "main.ts",
+  "bin": {
+    "cdds": "./main.ts"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "gip": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  },
+  "keywords": [
+    "cli",
+    "cloudflare",
+    "ddns",
+    "dns",
+    "dynamic-dns",
+    "ipv4",
+    "no-ip",
+    "noip",
+    "tool"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Avaray/cloudflare-dynamic-dns.git"
+  },
+  "license": "MIT"
+}
