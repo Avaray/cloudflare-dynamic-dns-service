@@ -1,18 +1,31 @@
 # **CDDS** ![](https://api.iconify.design/logos:cloudflare-icon.svg) Cloudflare Dynamic DNS Service
 
+Created for [Cloudflare](https://cloudflare.com) users who want to use their own
+[subdomains](https://en.wikipedia.org/wiki/Subdomain) (or
+[domains](https://en.wikipedia.org/wiki/Domain_name)) for dynamic DNS.
+
+It is slightly more complex alternative to services like
+[No-IP](http://www.noip.com/), [Dynu](http://www.dynu.com/),
+[CouDNS](https://www.cloudns.net/), etc. It will be useful when you don't have a
+static IP address (when your
+[ISP](https://en.wikipedia.org/wiki/Internet_service_provider) changes it
+frequently), and you would like to always connect to the same address. It will
+monitor your external IP address and update your Cloudflare DNS records
+automatically.
+
 ## Requirements
 
 - [Deno](https://docs.deno.com/runtime/getting_started/installation/) or
-  [Bun](https://bun.com/docs/installation) as your JavaScript runtime
+  [Bun](https://bun.com/docs/installation) as your JavaScript runtime.
 - [Cloudflare account](https://dash.cloudflare.com/sign-up) with
   [added website](https://developers.cloudflare.com/fundamentals/setup/account-setup/add-site/)
   and
   [API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/)
   or
-  [Global API key](https://developers.cloudflare.com/fundamentals/api/get-started/keys/)
+  [Global API key](https://developers.cloudflare.com/fundamentals/api/get-started/keys/).
 - Any process manager (like [PM2](https://pm2.keymetrics.io/) or
   [systemd.service](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html))
-  if you want to run it for a long time
+  if you want to run it for a long time.
 
 ## Configuration
 
@@ -48,3 +61,5 @@ CDDS_IP_LOGFILE=true
 
 - [ ] Remove CDDS_TARGET and use only CDDS_TARGETS
 - [ ] Auto-detect type of API key (token or key)
+- [ ] CLI with prompts for initial configuration
+- [ ] Publication to NPM
