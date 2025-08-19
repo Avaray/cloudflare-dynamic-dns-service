@@ -61,7 +61,12 @@ CDDS_IP_LOGFILE=true
 
 ## Things to implement
 
-- [ ] Remove CDDS_TARGET and use only CDDS_TARGETS
-- [ ] Auto-detect type of API key (token or key)
-- [ ] CLI with prompts for initial configuration
-- [ ] Publication to NPM
+- Remove CDDS_TARGET and use only CDDS_TARGETS. Remove all unnecessary code
+  related to old CDDS_TARGET.
+- Auto-detect type of API key (token or key). Add log about it.
+- Information about logging to file should be after information about starting
+  the script/script.
+- Do not require email address if user is using Token.
+
+- CLI with prompts for initial configuration (creating .env file).
+- Publication to NPM.
