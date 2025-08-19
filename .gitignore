@@ -136,4 +136,13 @@ dist
 .pnp.*
 
 # Deno
-deno.lock
+deno.lock*
+
+# Bun
+bun.lock*
+
+# Node
+package.lock*
+
+# PNPM
+pnpm-lock.yaml
