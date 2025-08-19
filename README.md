@@ -29,6 +29,18 @@ automatically.
   [systemd.service](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html))
   if you want to run it for a long time.
 
+## Installation
+
+### Using [Deno](https://deno.com/)
+
+```sh
+```
+
+### Using [Bun](https://bun.sh/)
+
+```sh
+```
+
 ## Configuration
 
 | Environment Variable    | Description                                                                                                                                 |
