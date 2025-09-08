@@ -7,7 +7,6 @@ interface CloudflareConfig {
   apiKey: string;
   apiKeyType: "key" | "token";
   checkIntervalMinutes?: number;
-  diagnostic?: boolean;
   email: string;
   ipLogFile?: string | boolean;
   logs: boolean;
@@ -630,8 +629,6 @@ class CloudflareDDNS {
   // Main update cycle for a single target
   private async performUpdateForTarget(target: string): Promise<void> {
     try {
-      this.config.diagnostic && await this.diagnosticCheck(target);
-
       // Clear cached record ID to force fresh lookup
       const existingInfo = this.targetInfos.find((info) => info.target === target);
       if (existingInfo) {
@@ -736,27 +733,6 @@ class CloudflareDDNS {
     }
   }
 
-  private async diagnosticCheck(target: string): Promise<void> {
-    console.log(`=== DIAGNOSTIC CHECK for ${target} ===`);
-
-    // Check all records
-    const allRecords = await this.getAllDNSRecords(target);
-    console.log(`Total A records found: ${allRecords.length}`);
-    allRecords.forEach((r, i) => {
-      console.log(`Record ${i + 1}: ID=${r.id}, IP=${r.content}, TTL=${r.ttl}`);
-    });
-
-    // Check cached info
-    const cached = this.targetInfos.find((info) => info.target === target);
-    if (cached) {
-      console.log(`Cached record ID: ${cached.recordId}`);
-      console.log(`Cached zone ID: ${cached.zoneId}`);
-    }
-
-    console.log(`Current external IP: ${this.currentIP}`);
-    console.log(`===============================`);
-  }
-
   // Start the monitoring loop
   public async start(): Promise<void> {
     const intervalMinutes = this.config.checkIntervalMinutes!;
@@ -843,7 +819,6 @@ const config: CloudflareConfig = {
   apiKey: process.env.CDDS_API_KEY ?? "your_cloudflare_api_key_here",
   apiKeyType: (process.env.CDDS_API_KEY_TYPE as "key" | "token") ?? "key",
   checkIntervalMinutes: parseInt(process.env.CDDS_CHECK_INTERVAL ?? "5"),
-  diagnostic: process.env.CDDS_DIAGNOSTIC?.toLowerCase() === "true",
   email: process.env.CDDS_EMAIL ?? "your_email@example.com",
   ipLogFile: getIPLogFileConfig(),
   logs: process.env.CDDS_LOGS?.toLowerCase() === "true",
@@ -912,7 +887,6 @@ if (import.meta.main) {
     console.error(`CDDS_LOGS=true`);
     console.error(`CDDS_CHECK_INTERVAL=5`);
     console.error(`CDDS_IP_LOGFILE=true (or path to directory/file)`);
-    console.error(`CDDS_DIAGNOSTIC=true`);
     process.exit(1);
   }
 }
