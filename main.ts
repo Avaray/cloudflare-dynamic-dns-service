@@ -112,8 +112,6 @@ class CloudflareDDNS {
           }
         }
       }
-
-      this.config.logs && console.log(`IP logging enabled: ${this.ipLogPath}`);
     } catch (error) {
       if (this.config.logs) {
         console.error(
@@ -775,6 +773,7 @@ class CloudflareDDNS {
       console.log(`TTL: ${this.config.ttl} seconds`);
       console.log(`Will auto-discover record IDs for each target`);
       console.log(`Logs: ${this.config.logs ? "Enabled" : "Disabled"}`);
+      console.log(`IP Logging to file: ${this.ipLogPath ? this.ipLogPath : "Disabled"}`);
     }
 
     // Initial check on startup
