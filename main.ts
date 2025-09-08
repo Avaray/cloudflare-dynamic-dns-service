@@ -117,7 +117,9 @@ class CloudflareDDNS {
       }
     } catch (error) {
       if (this.config.logs) {
-        console.error(`Error initializing IP logging: ${error instanceof Error ? error.message : String(error)}`);
+        console.error(
+          `Error initializing IP logging: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
       this.ipLogPath = "";
     }
@@ -146,7 +148,9 @@ class CloudflareDDNS {
       }
     } catch (error) {
       if (this.config.logs) {
-        console.error(`Error logging IP change: ${error instanceof Error ? error.message : String(error)}`);
+        console.error(
+          `Error logging IP change: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
   }
@@ -160,7 +164,9 @@ class CloudflareDDNS {
       }
       return ip;
     } catch (error) {
-      throw new Error(`Failed to get current IP: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to get current IP: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -210,7 +216,9 @@ class CloudflareDDNS {
         }
       }
 
-      throw new Error(`Could not find any Cloudflare zone for domain: ${target}`);
+      throw new Error(
+        `Could not find any Cloudflare zone for domain: ${target}`,
+      );
     } catch (error) {
       throw new Error(
         `Zone ID discovery failed for ${target}: ${error instanceof Error ? error.message : String(error)}`,
@@ -242,7 +250,9 @@ class CloudflareDDNS {
 
       if (!response.ok) {
         if (this.config.logs) {
-          console.log(`API request failed for ${domain}: ${response.status} ${response.statusText}`);
+          console.log(
+            `API request failed for ${domain}: ${response.status} ${response.statusText}`,
+          );
         }
         return null;
       }
@@ -251,7 +261,9 @@ class CloudflareDDNS {
 
       if (!data.success) {
         if (this.config.logs && data.errors.length > 0) {
-          console.log(`Zone API error for ${domain}: ${data.errors.map((e) => e.message).join(", ")}`);
+          console.log(
+            `Zone API error for ${domain}: ${data.errors.map((e) => e.message).join(", ")}`,
+          );
         }
         return null;
       }
@@ -259,7 +271,9 @@ class CloudflareDDNS {
       if (data.result.length > 0) {
         const zone = data.result[0];
         if (this.config.logs) {
-          console.log(`Found zone: ${zone.name} (ID: ${zone.id}, Status: ${zone.status})`);
+          console.log(
+            `Found zone: ${zone.name} (ID: ${zone.id}, Status: ${zone.status})`,
+          );
         }
         return zone.id;
       }
@@ -270,31 +284,24 @@ class CloudflareDDNS {
       return null;
     } catch (error) {
       if (this.config.logs) {
-        console.log(`Error checking zone for ${domain}: ${error instanceof Error ? error.message : String(error)}`);
+        console.log(
+          `Error checking zone for ${domain}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
       return null;
     }
   }
 
-  // Get DNS record from Cloudflare
-  private async getDNSRecord(target: string): Promise<DNSRecord | null> {
+  // Get ALL DNS A records for a target (to check for duplicates)
+  private async getAllDNSRecords(target: string): Promise<DNSRecord[]> {
     try {
-      // Ensure we have a zone ID for this target
       const zoneId = await this.getZoneId(target);
-
-      // Get cached record ID for this target
-      const targetInfo = this.targetInfos.find((info) => info.target === target);
-      const recordId = targetInfo?.recordId;
-
-      const url = recordId
-        ? `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${recordId}`
-        : `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?name=${target}&type=A`;
+      const url = `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?name=${target}&type=A`;
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
 
-      // Set authorization header based on API key type
       if (this.config.apiKeyType === "token") {
         headers["Authorization"] = `Bearer ${this.config.apiKey}`;
       } else {
@@ -310,26 +317,110 @@ class CloudflareDDNS {
       const data: CloudflareResponse = await response.json();
 
       if (!data.success) {
-        throw new Error(`Cloudflare API error: ${data.errors.map((e) => e.message).join(", ")}`);
+        throw new Error(
+          `Cloudflare API error: ${data.errors.map((e) => e.message).join(", ")}`,
+        );
       }
 
-      if (recordId) {
-        return data.result as DNSRecord;
-      } else {
-        const records = data.result as DNSRecord[];
-        const record = records.find((r) => r.name === target && r.type === "A");
-        if (record) {
-          // Cache the record ID for future use
-          const existingInfo = this.targetInfos.find((info) => info.target === target);
-          if (existingInfo) {
-            existingInfo.recordId = record.id;
-          } else {
-            this.targetInfos.push({ target, zoneId, recordId: record.id });
+      return (data.result as DNSRecord[]).filter((r) => r.name === target && r.type === "A");
+    } catch (error) {
+      if (this.config.logs) {
+        console.error(
+          `Error getting all DNS records for ${target}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      return [];
+    }
+  }
+
+  // Clean up duplicate records (keep only the most recent one)
+  private async cleanupDuplicateRecords(
+    target: string,
+    records: DNSRecord[],
+  ): Promise<DNSRecord | null> {
+    if (records.length <= 1) {
+      return records[0] || null;
+    }
+
+    if (this.config.logs) {
+      console.log(
+        `Found ${records.length} duplicate A records for ${target}. Cleaning up...`,
+      );
+    }
+
+    // Keep the first record (or the one with current IP if exists)
+    const keepRecord = records.find((r) => r.content === this.currentIP) ||
+      records[0];
+
+    // Delete all other records
+    const zoneId = await this.getZoneId(target);
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (this.config.apiKeyType === "token") {
+      headers["Authorization"] = `Bearer ${this.config.apiKey}`;
+    } else {
+      headers["X-Auth-Email"] = this.config.email;
+      headers["X-Auth-Key"] = this.config.apiKey;
+    }
+
+    for (const record of records) {
+      if (record.id !== keepRecord.id) {
+        try {
+          const url = `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${record.id}`;
+          const response = await fetch(url, {
+            method: "DELETE",
+            headers,
+          });
+
+          const data = await response.json();
+          if (data.success) {
+            if (this.config.logs) {
+              console.log(
+                `Deleted duplicate record: ${record.id} (IP: ${record.content})`,
+              );
+            }
           }
-          return record;
+        } catch (error) {
+          if (this.config.logs) {
+            console.error(
+              `Error deleting duplicate record ${record.id}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
         }
+      }
+    }
+
+    return keepRecord;
+  }
+
+  // Get DNS record from Cloudflare (with duplicate cleanup)
+  private async getDNSRecord(target: string): Promise<DNSRecord | null> {
+    try {
+      // Get all A records for this target
+      const records = await this.getAllDNSRecords(target);
+
+      if (records.length === 0) {
         return null;
       }
+
+      // If we have duplicates, clean them up
+      const record = await this.cleanupDuplicateRecords(target, records);
+
+      if (record) {
+        // Cache the record ID for future use
+        const existingInfo = this.targetInfos.find((info) => info.target === target);
+        const zoneId = await this.getZoneId(target);
+        if (existingInfo) {
+          existingInfo.recordId = record.id;
+          existingInfo.zoneId = zoneId;
+        } else {
+          this.targetInfos.push({ target, zoneId, recordId: record.id });
+        }
+      }
+
+      return record;
     } catch (error) {
       if (this.config.logs) {
         console.error(
@@ -340,9 +431,23 @@ class CloudflareDDNS {
     }
   }
 
-  // Create DNS record in Cloudflare
-  private async createDNSRecord(target: string, newIP: string): Promise<boolean> {
+  // Create DNS record in Cloudflare (with duplicate check)
+  private async createDNSRecord(
+    target: string,
+    newIP: string,
+  ): Promise<boolean> {
     try {
+      // First, check if a record already exists
+      const existingRecord = await this.getDNSRecord(target);
+      if (existingRecord) {
+        if (this.config.logs) {
+          console.log(
+            `Record already exists for ${target}, updating instead of creating...`,
+          );
+        }
+        return await this.updateDNSRecord(target, newIP);
+      }
+
       // Ensure we have a zone ID for this target
       const zoneId = await this.getZoneId(target);
 
@@ -377,7 +482,24 @@ class CloudflareDDNS {
       const data: CloudflareResponse = await response.json();
 
       if (!data.success) {
-        throw new Error(`Failed to create DNS record for ${target}: ${data.errors.map((e) => e.message).join(", ")}`);
+        // Check if error is because record already exists
+        const existsError = data.errors.some((e) =>
+          e.message.toLowerCase().includes("already exists") ||
+          e.code === 81057
+        );
+
+        if (existsError) {
+          if (this.config.logs) {
+            console.log(
+              `Record already exists for ${target}, attempting to update...`,
+            );
+          }
+          return await this.updateDNSRecord(target, newIP);
+        }
+
+        throw new Error(
+          `Failed to create DNS record for ${target}: ${data.errors.map((e) => e.message).join(", ")}`,
+        );
       }
 
       const newRecord = data.result as DNSRecord;
@@ -386,8 +508,8 @@ class CloudflareDDNS {
       const existingInfo = this.targetInfos.find((info) => info.target === target);
       if (existingInfo) {
         existingInfo.recordId = newRecord.id;
+        existingInfo.zoneId = zoneId;
       } else {
-        const zoneId = await this.getZoneId(target);
         this.targetInfos.push({ target, zoneId, recordId: newRecord.id });
       }
 
@@ -406,20 +528,23 @@ class CloudflareDDNS {
   }
 
   // Update DNS record in Cloudflare
-  private async updateDNSRecord(target: string, newIP: string): Promise<boolean> {
+  private async updateDNSRecord(
+    target: string,
+    newIP: string,
+  ): Promise<boolean> {
     try {
-      const targetInfo = this.targetInfos.find((info) => info.target === target);
-      let recordId = targetInfo?.recordId;
-
-      if (!recordId) {
-        const record = await this.getDNSRecord(target);
-        if (!record) {
-          throw new Error(`DNS record not found for ${target} and no record ID provided`);
+      // Always get the current record to ensure we have the correct ID
+      const record = await this.getDNSRecord(target);
+      if (!record) {
+        if (this.config.logs) {
+          console.log(
+            `No existing record found for ${target}, creating new one...`,
+          );
         }
-        recordId = record.id;
+        return await this.createDNSRecord(target, newIP);
       }
 
-      // Ensure we have a zone ID for this target
+      const recordId = record.id;
       const zoneId = await this.getZoneId(target);
 
       const url = `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${recordId}`;
@@ -453,7 +578,9 @@ class CloudflareDDNS {
       const data: CloudflareResponse = await response.json();
 
       if (!data.success) {
-        throw new Error(`Failed to update DNS record for ${target}: ${data.errors.map((e) => e.message).join(", ")}`);
+        throw new Error(
+          `Failed to update DNS record for ${target}: ${data.errors.map((e) => e.message).join(", ")}`,
+        );
       }
 
       if (this.config.logs) {
@@ -471,7 +598,11 @@ class CloudflareDDNS {
   }
 
   // Verify DNS propagation (simplified check)
-  private async verifyDNSUpdate(target: string, expectedIP: string, maxRetries: number = 5): Promise<boolean> {
+  private async verifyDNSUpdate(
+    target: string,
+    expectedIP: string,
+    maxRetries: number = 5,
+  ): Promise<boolean> {
     for (let i = 0; i < maxRetries; i++) {
       await this.sleep(2000); // Wait 2 seconds between checks
 
@@ -484,12 +615,16 @@ class CloudflareDDNS {
       }
 
       if (this.config.logs) {
-        console.log(`Waiting for DNS propagation for ${target}... (attempt ${i + 1}/${maxRetries})`);
+        console.log(
+          `Waiting for DNS propagation for ${target}... (attempt ${i + 1}/${maxRetries})`,
+        );
       }
     }
 
     if (this.config.logs) {
-      console.log(`DNS verification timed out for ${target}, but update may still be processing`);
+      console.log(
+        `DNS verification timed out for ${target}, but update may still be processing`,
+      );
     }
     return false;
   }
@@ -502,21 +637,27 @@ class CloudflareDDNS {
   // Main update cycle for a single target
   private async performUpdateForTarget(target: string): Promise<void> {
     try {
-      // Get current DNS record
+      // Get current DNS record (this will also clean up duplicates if found)
       const dnsRecord = await this.getDNSRecord(target);
+
       if (!dnsRecord) {
         if (this.config.logs) {
-          console.log(`DNS record not found for ${target}, creating new record...`);
+          console.log(
+            `DNS record not found for ${target}, creating new record...`,
+          );
         }
-        const createSuccess = await this.createDNSRecord(target, this.currentIP);
+        const createSuccess = await this.createDNSRecord(
+          target,
+          this.currentIP,
+        );
         if (!createSuccess) {
           if (this.config.logs) {
             console.error(`Failed to create DNS record for ${target}`);
           }
-          return;
+        } else {
+          // Verify the record was created
+          await this.verifyDNSUpdate(target, this.currentIP);
         }
-        // Verify the record was created
-        await this.verifyDNSUpdate(target, this.currentIP);
         return;
       }
 
@@ -534,7 +675,9 @@ class CloudflareDDNS {
       }
 
       if (this.config.logs) {
-        console.log(`IP address changed for ${target}: ${dnsIP} → ${this.currentIP}`);
+        console.log(
+          `IP address changed for ${target}: ${dnsIP} → ${this.currentIP}`,
+        );
         console.log(`Updating DNS record for ${target}...`);
       }
 
@@ -585,7 +728,9 @@ class CloudflareDDNS {
       this.lastKnownIP = this.currentIP;
     } catch (error) {
       if (this.config.logs) {
-        console.error(`Error in update cycle: ${error instanceof Error ? error.message : String(error)}`);
+        console.error(
+          `Error in update cycle: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
   }
@@ -687,13 +832,20 @@ const config: CloudflareConfig = {
 function validateConfig(config: CloudflareConfig): void {
   if (!config.email || config.email === "your_email@example.com") {
     if (config.apiKeyType === "key") {
-      throw new Error("Please set your Cloudflare email (CDDS_EMAIL environment variable) when using API key");
+      throw new Error(
+        "Please set your Cloudflare email (CDDS_EMAIL environment variable) when using API key",
+      );
     }
   }
   if (!config.apiKey || config.apiKey === "your_cloudflare_api_key_here") {
-    throw new Error("Please set your Cloudflare API key/token (CDDS_API_KEY environment variable)");
+    throw new Error(
+      "Please set your Cloudflare API key/token (CDDS_API_KEY environment variable)",
+    );
   }
-  if (!config.targets || config.targets.length === 0 || config.targets.some((t) => t === "subdomain.yourdomain.com")) {
+  if (
+    !config.targets || config.targets.length === 0 ||
+    config.targets.some((t) => t === "subdomain.yourdomain.com")
+  ) {
     throw new Error(
       "Please set your target domain(s) (CDDS_TARGETS environment variable - comma-separated for multiple targets)",
     );
@@ -719,12 +871,18 @@ if (import.meta.main) {
     const ddnsService = new CloudflareDDNS(config);
     await ddnsService.start();
   } catch (error) {
-    console.error(`Configuration error: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `Configuration error: ${error instanceof Error ? error.message : String(error)}`,
+    );
     console.error(`\nEnvironment variables you can set:`);
-    console.error(`CDDS_EMAIL=your_email@example.com (required for API key type)`);
+    console.error(
+      `CDDS_EMAIL=your_email@example.com (required for API key type)`,
+    );
     console.error(`CDDS_API_KEY=your_api_key_or_token`);
     console.error(`CDDS_API_KEY_TYPE=key (or 'token')`);
-    console.error(`CDDS_TARGETS=subdomain.domain.com,another.domain.com (comma-separated)`);
+    console.error(
+      `CDDS_TARGETS=subdomain.domain.com,another.domain.com (comma-separated)`,
+    );
     console.error(`CDDS_ZONE_ID=optional_zone_id`);
     console.error(`CDDS_TTL=300 (in seconds)`);
     console.error(`CDDS_LOGS=true`);
