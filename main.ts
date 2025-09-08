@@ -296,10 +296,13 @@ class CloudflareDDNS {
   private async getAllDNSRecords(target: string): Promise<DNSRecord[]> {
     try {
       const zoneId = await this.getZoneId(target);
-      const url = `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?name=${target}&type=A`;
+      const timestamp = Date.now();
+      const url =
+        `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?name=${target}&type=A&_=${timestamp}`;
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
+        "Cache-Control": "no-cache", // Force no cache
       };
 
       if (this.config.apiKeyType === "token") {
@@ -343,16 +346,17 @@ class CloudflareDDNS {
     }
 
     if (this.config.logs) {
-      console.log(
-        `Found ${records.length} duplicate A records for ${target}. Cleaning up...`,
-      );
+      console.log(`Found ${records.length} duplicate A records for ${target}:`);
+      records.forEach((r) => console.log(`  - ID: ${r.id}, IP: ${r.content}`));
     }
 
-    // Keep the first record (or the one with current IP if exists)
-    const keepRecord = records.find((r) => r.content === this.currentIP) ||
-      records[0];
+    // Sort by ID to get consistent ordering
+    records.sort((a, b) => a.id.localeCompare(b.id));
 
-    // Delete all other records
+    const keepRecord = records[0]; // Keep the first one consistently
+    const toDelete = records.slice(1);
+
+    // Delete duplicates
     const zoneId = await this.getZoneId(target);
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -365,29 +369,18 @@ class CloudflareDDNS {
       headers["X-Auth-Key"] = this.config.apiKey;
     }
 
-    for (const record of records) {
-      if (record.id !== keepRecord.id) {
-        try {
-          const url = `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${record.id}`;
-          const response = await fetch(url, {
-            method: "DELETE",
-            headers,
-          });
-
-          const data = await response.json();
-          if (data.success) {
-            if (this.config.logs) {
-              console.log(
-                `Deleted duplicate record: ${record.id} (IP: ${record.content})`,
-              );
-            }
-          }
-        } catch (error) {
-          if (this.config.logs) {
-            console.error(
-              `Error deleting duplicate record ${record.id}: ${error instanceof Error ? error.message : String(error)}`,
-            );
-          }
+    for (const record of toDelete) {
+      try {
+        const url = `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${record.id}`;
+        await fetch(url, { method: "DELETE", headers });
+        if (this.config.logs) {
+          console.log(`Deleted duplicate record: ${record.id} (IP: ${record.content})`);
+        }
+        // Add delay between deletions
+        await this.sleep(1000);
+      } catch (error) {
+        if (this.config.logs) {
+          console.error(`Error deleting duplicate record ${record.id}:`, error);
         }
       }
     }
@@ -400,6 +393,11 @@ class CloudflareDDNS {
     try {
       // Get all A records for this target
       const records = await this.getAllDNSRecords(target);
+
+      if (this.config.logs) {
+        console.log(`Found ${records.length} A records for ${target}:`);
+        records.forEach((r) => console.log(`  - ID: ${r.id}, IP: ${r.content}, TTL: ${r.ttl}`));
+      }
 
       if (records.length === 0) {
         return null;
@@ -637,6 +635,14 @@ class CloudflareDDNS {
   // Main update cycle for a single target
   private async performUpdateForTarget(target: string): Promise<void> {
     try {
+      await this.diagnosticCheck(target);
+
+      // Clear cached record ID to force fresh lookup
+      const existingInfo = this.targetInfos.find((info) => info.target === target);
+      if (existingInfo) {
+        existingInfo.recordId = undefined;
+      }
+
       // Get current DNS record (this will also clean up duplicates if found)
       const dnsRecord = await this.getDNSRecord(target);
 
@@ -733,6 +739,27 @@ class CloudflareDDNS {
         );
       }
     }
+  }
+
+  private async diagnosticCheck(target: string): Promise<void> {
+    console.log(`=== DIAGNOSTIC CHECK for ${target} ===`);
+
+    // Check all records
+    const allRecords = await this.getAllDNSRecords(target);
+    console.log(`Total A records found: ${allRecords.length}`);
+    allRecords.forEach((r, i) => {
+      console.log(`Record ${i + 1}: ID=${r.id}, IP=${r.content}, TTL=${r.ttl}`);
+    });
+
+    // Check cached info
+    const cached = this.targetInfos.find((info) => info.target === target);
+    if (cached) {
+      console.log(`Cached record ID: ${cached.recordId}`);
+      console.log(`Cached zone ID: ${cached.zoneId}`);
+    }
+
+    console.log(`Current external IP: ${this.currentIP}`);
+    console.log(`===============================`);
   }
 
   // Start the monitoring loop
