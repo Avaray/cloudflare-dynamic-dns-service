@@ -113,9 +113,7 @@ class CloudflareDDNS {
         }
       }
 
-      if (this.config.logs) {
-        console.log(`IP logging enabled: ${this.ipLogPath}`);
-      }
+      this.config.logs && console.log(`IP logging enabled: ${this.ipLogPath}`);
     } catch (error) {
       if (this.config.logs) {
         console.error(
@@ -128,9 +126,7 @@ class CloudflareDDNS {
 
   // Log IP change to file
   private logIPChange(newIP: string): void {
-    if (!this.ipLogPath) {
-      return;
-    }
+    if (!this.ipLogPath) return;
 
     try {
       const now = new Date();
@@ -917,6 +913,7 @@ if (import.meta.main) {
     console.error(`CDDS_LOGS=true`);
     console.error(`CDDS_CHECK_INTERVAL=5`);
     console.error(`CDDS_IP_LOGFILE=true (or path to directory/file)`);
+    console.error(`CDDS_DIAGNOSTIC=true`);
     process.exit(1);
   }
 }
