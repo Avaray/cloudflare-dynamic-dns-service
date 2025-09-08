@@ -4,60 +4,61 @@ import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join } from "node:path";
 
 interface CloudflareConfig {
-  email: string;
   apiKey: string;
   apiKeyType: "key" | "token";
-  targets: string[];
-  zoneId: string;
-  ttl: number;
+  checkIntervalMinutes?: number;
+  diagnostic?: boolean;
+  email: string;
+  ipLogFile?: string | boolean;
   logs: boolean;
   recordId?: string;
-  checkIntervalMinutes?: number;
-  ipLogFile?: string | boolean;
+  targets: string[];
+  ttl: number;
+  zoneId: string;
 }
 
 interface TargetInfo {
+  recordId?: string;
   target: string;
   zoneId: string;
-  recordId?: string;
 }
 
 interface DNSRecord {
-  id: string;
-  type: string;
-  name: string;
   content: string;
-  ttl: number;
+  id: string;
+  name: string;
   proxied: boolean;
+  ttl: number;
+  type: string;
 }
 
 interface CloudflareZone {
   id: string;
   name: string;
-  status: string;
   paused: boolean;
+  status: string;
 }
 
 interface CloudflareResponse {
-  success: boolean;
   errors: Array<{ code: number; message: string }>;
   messages: Array<{ code: number; message: string }>;
   result: DNSRecord | DNSRecord[];
+  success: boolean;
 }
 
 interface CloudflareZoneResponse {
-  success: boolean;
   errors: Array<{ code: number; message: string }>;
   messages: Array<{ code: number; message: string }>;
   result: CloudflareZone[];
+  success: boolean;
 }
 
 class CloudflareDDNS {
   private config: CloudflareConfig;
   private currentIP: string = "";
+  private ipLogPath: string = "";
   private lastKnownIP: string = "";
   private targetInfos: TargetInfo[] = [];
-  private ipLogPath: string = "";
 
   constructor(config: CloudflareConfig) {
     this.config = {
@@ -635,7 +636,7 @@ class CloudflareDDNS {
   // Main update cycle for a single target
   private async performUpdateForTarget(target: string): Promise<void> {
     try {
-      await this.diagnosticCheck(target);
+      this.config.diagnostic && await this.diagnosticCheck(target);
 
       // Clear cached record ID to force fresh lookup
       const existingInfo = this.targetInfos.find((info) => info.target === target);
@@ -844,15 +845,16 @@ function getIPLogFileConfig(): string | boolean | undefined {
 
 // Configuration
 const config: CloudflareConfig = {
-  email: process.env.CDDS_EMAIL ?? "your_email@example.com",
   apiKey: process.env.CDDS_API_KEY ?? "your_cloudflare_api_key_here",
   apiKeyType: (process.env.CDDS_API_KEY_TYPE as "key" | "token") ?? "key",
-  targets: getTargets(),
-  zoneId: process.env.CDDS_ZONE_ID ?? "",
-  ttl: parseInt(process.env.CDDS_TTL ?? "60"),
-  logs: process.env.CDDS_LOGS?.toLowerCase() === "true",
   checkIntervalMinutes: parseInt(process.env.CDDS_CHECK_INTERVAL ?? "5"),
+  diagnostic: process.env.CDDS_DIAGNOSTIC?.toLowerCase() === "true",
+  email: process.env.CDDS_EMAIL ?? "your_email@example.com",
   ipLogFile: getIPLogFileConfig(),
+  logs: process.env.CDDS_LOGS?.toLowerCase() === "true",
+  targets: getTargets(),
+  ttl: parseInt(process.env.CDDS_TTL ?? "60"),
+  zoneId: process.env.CDDS_ZONE_ID ?? "",
 };
 
 // Validate configuration
