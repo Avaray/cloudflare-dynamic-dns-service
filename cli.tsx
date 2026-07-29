@@ -363,6 +363,11 @@ const isSystemdAvailable = (): boolean => {
 	try { execSync('systemctl --version', { stdio: 'ignore' }); return true; } catch { return false; }
 };
 
+const isWindowsAdmin = (): boolean => {
+	if (!isWindows) return false;
+	try { execSync('net session', { stdio: 'ignore' }); return true; } catch { return false; }
+};
+
 const TASK_NAME = 'CDDS-DynamicDNS';
 
 const TaskSchedulerManager = ({ onBack }: { onBack: () => void }) => {
@@ -384,6 +389,10 @@ const TaskSchedulerManager = ({ onBack }: { onBack: () => void }) => {
 
 	const validateAndRun = async (action: () => void) => {
 		setError(''); setStatus('');
+		if (!isWindowsAdmin()) {
+			setError("Administrator privileges required! Please run CLI as Administrator.");
+			return;
+		}
 		try {
 			const cfg = await parseEnv();
 			if (!cfg) throw new Error('No .env file found. Please run the configuration wizard first.');
