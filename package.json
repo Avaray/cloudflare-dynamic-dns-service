@@ -4,6 +4,9 @@
   "description": "Cloudflare Dynamic DNS Service for Bun",
   "type": "module",
   "main": "dist/main.js",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "start": "node dist/main.js",
     "cli": "node dist/cli.js",
