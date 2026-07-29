@@ -39,7 +39,11 @@ You can install the package globally using Bun to get access to the interactive 
 bun install -g .
 ```
 
-After installation, simply type `cdds` in your terminal to open the interactive setup wizard, or `cdds start` to run the daemon.
+After installation, simply type `cdds` in your terminal to open the interactive setup wizard and service manager.
+
+If a configuration (`.env`) already exists in your current directory, running `cdds` will allow you to edit your existing configuration instead of starting from scratch.
+
+You can also bypass the UI and directly start the daemon by running `cdds start`.
 
 ### Local Installation
 

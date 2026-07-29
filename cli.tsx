@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { render, Box, Text, useApp, Newline } from 'ink';
 import SelectInput from 'ink-select-input';
 import TextInput from 'ink-text-input';
@@ -48,17 +48,17 @@ const parseEnv = async (): Promise<CloudflareConfig | null> => {
 	}
 };
 
-const EnvWizard = ({ onComplete }: { onComplete: (installNow: boolean) => void }) => {
+const EnvWizard = ({ onComplete, initialConfig }: { onComplete: (installNow: boolean) => void, initialConfig: CloudflareConfig | null }) => {
 	const [step, setStep] = useState(0);
 	const [config, setConfig] = useState({
-		apiKey: '',
-		email: '',
-		targets: '',
-		zoneId: '',
-		ttl: '60',
-		interval: '5',
-		logs: 'true',
-		ipLogFile: 'true'
+		apiKey: initialConfig?.apiKey || '',
+		email: initialConfig?.email || '',
+		targets: initialConfig?.targets.join(', ') || '',
+		zoneId: initialConfig?.zoneId || '',
+		ttl: initialConfig?.ttl?.toString() || '60',
+		interval: initialConfig?.checkIntervalMinutes?.toString() || '5',
+		logs: initialConfig?.logs !== false ? 'true' : 'false',
+		ipLogFile: (initialConfig?.ipLogFile || 'true').toString()
 	});
 
 	const steps = [
@@ -355,6 +355,13 @@ const PM2Manager = ({ onBack }: { onBack: () => void }) => {
 const App = () => {
 	const { exit } = useApp();
 	const [view, setView] = useState('menu');
+	const [existingConfig, setExistingConfig] = useState<CloudflareConfig | null>(null);
+
+	useEffect(() => {
+		if (view === 'menu') {
+			parseEnv().then(cfg => setExistingConfig(cfg));
+		}
+	}, [view]);
 
 	const handleSelect = (item: any) => {
 		if (item.value === 'exit') {
@@ -365,7 +372,7 @@ const App = () => {
 	};
 
 	const menuItems = [
-		{ label: 'Run .env Configuration Wizard', value: 'env' },
+		{ label: existingConfig ? 'Edit existing .env Configuration' : 'Run .env Configuration Wizard', value: 'env' },
 		{ label: 'Manage Systemd Service', value: 'systemd' },
 		{ label: 'Manage PM2 Service', value: 'pm2' },
 		{ label: 'Exit', value: 'exit' }
@@ -398,7 +405,7 @@ const App = () => {
 			)}
 
 			{view === 'env' && (
-				<EnvWizard onComplete={(installNow) => setView(installNow ? 'install_prompt' : 'menu')} />
+				<EnvWizard initialConfig={existingConfig} onComplete={(installNow) => setView(installNow ? 'install_prompt' : 'menu')} />
 			)}
 			{view === 'systemd' && <SystemdManager onBack={() => setView('menu')} />}
 			{view === 'pm2' && <PM2Manager onBack={() => setView('menu')} />}
