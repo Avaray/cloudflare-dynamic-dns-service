@@ -1,5 +1,5 @@
 {
-  "name": "cdds",
+  "name": "cloudflare-dynamic-dns-service",
   "version": "1.0.0",
   "description": "Cloudflare Dynamic DNS Service for Bun",
   "main": "main.ts",
