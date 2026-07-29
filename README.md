@@ -29,14 +29,17 @@ If your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) frequentl
 To get started, install the package globally using your preferred package manager:
 
 ```sh
-# using npm
+# using NPM
 npm install -g cloudflare-dynamic-dns-service
 
-# using pnpm
+# using PNPM
 pnpm install -g cloudflare-dynamic-dns-service
 
-# using bun
+# using Bun
 bun install -g cloudflare-dynamic-dns-service
+
+# using Deno
+deno install -g npm:cloudflare-dynamic-dns-service
 ```
 
 ## 🛠️ Usage
