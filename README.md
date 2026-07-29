@@ -1,8 +1,8 @@
 # **CDDS** ![](https://api.iconify.design/logos:cloudflare-icon.svg) Cloudflare Dynamic DNS Service
 
-A lightweight, powerful, and interactive Dynamic DNS (DDNS) client for Cloudflare, built entirely in [Bun](https://bun.sh).
+A lightweight, interactive Dynamic DNS (DDNS) client for [Cloudflare](https://www.cloudflare.com/).
 
-If your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) frequently changes your dynamic IP address, and you want to host services on your home network under a static domain name, **CDDS** is a tool for you. It runs efficiently in the background, checks your public IP address, and automatically updates your Cloudflare DNS records whenever your IP changes.
+If your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) frequently changes your dynamic IP address, and you want to host services on your home network under a static domain name, **CDDS** is a tool for you. It runs efficiently in the background, checks your public [IPv4 address](https://en.wikipedia.org/wiki/IPv4), and automatically updates your Cloudflare [DNS records](https://en.wikipedia.org/wiki/Domain_Name_System) whenever your IP changes.
 
 ## 🚀 Features
 
