@@ -1,10 +1,17 @@
 name: Publish to NPM
 
-# Trigger the workflow when code is pushed to main branch
 on:
+  # Trigger automatically when code is pushed to main branch
   push:
     branches:
       - main
+  # Allow manual triggering from GitHub Actions UI with an optional version
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 1.2.0, 2.0.0-beta.1). Leave empty to use version from package.json.'
+        required: false
+        default: ''
 
 jobs:
   check-version:
@@ -24,7 +31,12 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
-      # 3. Early check if version already exists on NPM
+      # 3. If triggered manually with a version input, bump package.json version
+      - name: Bump Version (manual trigger only)
+        if: github.event_name == 'workflow_dispatch' && inputs.version != ''
+        run: npm version ${{ inputs.version }} --no-git-tag-version
+
+      # 4. Early check if version already exists on NPM
       # Compares package.json version with the latest version on NPM.
       # If it exists, sets should_publish=false to skip the next job.
       - name: Check if Version Exists
