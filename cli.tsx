@@ -352,10 +352,131 @@ const PM2Manager = ({ onBack }: { onBack: () => void }) => {
 	);
 };
 
+const DaemonManager = ({ onBack, pidFile }: { onBack: () => void; pidFile: string }) => {
+	const [pid, setPid] = useState<number | null>(null);
+	const [running, setRunning] = useState<boolean | null>(null);
+	const [message, setMessage] = useState<string>('');
+	const [error, setError] = useState<string>('');
+
+	const refreshStatus = async () => {
+		try {
+			const f = Bun.file(pidFile);
+			if (!(await f.exists())) { setRunning(false); setPid(null); return; }
+			const stored = parseInt(await f.text(), 10);
+			if (!stored || isNaN(stored)) { setRunning(false); setPid(null); return; }
+			try {
+				process.kill(stored, 0);
+				setPid(stored); setRunning(true);
+			} catch {
+				setPid(null); setRunning(false);
+				await Bun.write(pidFile, '');
+			}
+		} catch { setRunning(false); setPid(null); }
+	};
+
+	useEffect(() => { refreshStatus(); }, []);
+
+	const handleStart = async () => {
+		setMessage('');
+		setError('');
+		try {
+			const cfg = await parseEnv();
+			if (!cfg) throw new Error('No .env file found. Run the configuration wizard first.');
+			validateConfig(cfg);
+		} catch (err: any) {
+			setError(`Validation Error: ${err.message}`);
+			return;
+		}
+		try {
+			const f = Bun.file(pidFile);
+			if (await f.exists()) {
+				const stored = parseInt(await f.text(), 10);
+				if (stored && !isNaN(stored)) {
+					try { process.kill(stored, 0); setError(`Daemon already running (PID: ${stored}).`); return; } catch { }
+				}
+			}
+			const bunExec = process.execPath;
+			const scriptPath = new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+			const child = Bun.spawn([bunExec, scriptPath, 'start'], {
+				detached: true,
+				stdio: ['ignore', 'ignore', 'ignore'],
+				env: { ...process.env },
+			});
+			await Bun.write(pidFile, child.pid.toString());
+			child.unref();
+			logMessage(`Daemon: Started (PID: ${child.pid})`);
+			setMessage(`Daemon started! (PID: ${child.pid})`);
+			await refreshStatus();
+		} catch (err: any) {
+			setError(`Failed to start: ${err.message}`);
+		}
+	};
+
+	const handleStop = async () => {
+		setMessage('');
+		setError('');
+		try {
+			const f = Bun.file(pidFile);
+			if (!(await f.exists())) { setError('Daemon is not running.'); return; }
+			const stored = parseInt(await f.text(), 10);
+			if (!stored || isNaN(stored)) { setError('Invalid PID file.'); return; }
+			process.kill(stored, 'SIGTERM');
+			await Bun.write(pidFile, '');
+			logMessage(`Daemon: Stopped (PID: ${stored})`);
+			setMessage(`Daemon stopped (PID: ${stored}).`);
+			await refreshStatus();
+		} catch (err: any) {
+			if (err.code === 'ESRCH') {
+				await Bun.write(pidFile, '');
+				setMessage('Daemon was not running (stale PID removed).');
+				await refreshStatus();
+			} else {
+				setError(`Failed to stop: ${err.message}`);
+			}
+		}
+	};
+
+	const statusColor = running === null ? 'yellow' : running ? 'green' : 'red';
+	const statusLabel = running === null ? 'Checking...' : running ? `Running (PID: ${pid})` : 'Stopped';
+
+	const items = [
+		...(running ? [] : [{ label: 'Start Daemon (background)', value: 'start' }]),
+		...(running ? [{ label: 'Stop Daemon', value: 'stop' }] : []),
+		{ label: 'Refresh Status', value: 'refresh' },
+		{ label: 'Go Back', value: 'back' },
+	];
+
+	return (
+		<Box flexDirection="column" marginY={1}>
+			<Text color="cyan" bold>--- DAEMON MANAGER ---</Text>
+			<Newline />
+			<Box>
+				<Text bold>Status: </Text>
+				<Text color={statusColor} bold>{statusLabel}</Text>
+			</Box>
+			<Newline />
+			{error && <Text color="red">ERROR: {error}</Text>}
+			{message && <Text color="green">{message}</Text>}
+			<SelectInput
+				items={items}
+				onSelect={(item) => {
+					setMessage('');
+					setError('');
+					if (item.value === 'start') handleStart();
+					if (item.value === 'stop') handleStop();
+					if (item.value === 'refresh') refreshStatus();
+					if (item.value === 'back') onBack();
+				}}
+			/>
+		</Box>
+	);
+};
+
 const App = () => {
 	const { exit } = useApp();
 	const [view, setView] = useState('menu');
 	const [existingConfig, setExistingConfig] = useState<CloudflareConfig | null>(null);
+	const PID_FILE_PATH = process.cwd() + '/cdds.pid';
 
 	useEffect(() => {
 		if (view === 'menu') {
@@ -373,6 +494,7 @@ const App = () => {
 
 	const menuItems = [
 		{ label: existingConfig ? 'Edit existing .env Configuration' : 'Run .env Configuration Wizard', value: 'env' },
+		{ label: 'Manage Daemon (built-in)', value: 'daemon' },
 		{ label: 'Manage Systemd Service', value: 'systemd' },
 		{ label: 'Manage PM2 Service', value: 'pm2' },
 		{ label: 'Exit', value: 'exit' }
@@ -407,6 +529,7 @@ const App = () => {
 			{view === 'env' && (
 				<EnvWizard initialConfig={existingConfig} onComplete={(installNow) => setView(installNow ? 'install_prompt' : 'menu')} />
 			)}
+			{view === 'daemon' && <DaemonManager pidFile={PID_FILE_PATH} onBack={() => setView('menu')} />}
 			{view === 'systemd' && <SystemdManager onBack={() => setView('menu')} />}
 			{view === 'pm2' && <PM2Manager onBack={() => setView('menu')} />}
 		</Box>
