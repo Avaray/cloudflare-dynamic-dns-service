@@ -6,8 +6,8 @@ If your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) frequentl
 
 ## 🚀 Features
 
-- **Interactive [CLI](https://en.wikipedia.org/wiki/Command-line_interface) Setup Wizard:** Zero manual `.env` file editing. Just type `cdds` and follow the beautiful terminal UI to configure everything.
-- **Service Manager Integrations:** Built-in tools to easily install, pause, or remove the DDNS background service depending on your operating system:
+- **Interactive [CLI](https://en.wikipedia.org/wiki/Command-line_interface) Setup Wizard:** Zero manual `.env` file editing. Just type `cdds` and follow terminal UI to configure everything.
+- **Service Manager Integrations:** Built-in tools to easily manage the DDNS background service depending on your operating system:
   - **Native Daemon Mode:** Run detached directly via Bun (no external tools required).
   - **[Windows Task Scheduler](https://en.wikipedia.org/wiki/Windows_Task_Scheduler):** Auto-installs and runs on system boot (Windows).
   - **[Systemd Service](https://en.wikipedia.org/wiki/Systemd):** Native Linux background service integration.
