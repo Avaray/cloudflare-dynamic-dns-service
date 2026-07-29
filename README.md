@@ -32,10 +32,21 @@ automatically.
 
 ### Global Installation (Recommended)
 
-You can install the package globally using Bun to get access to the interactive `cdds` CLI tool.
+Once published to NPM, you can install the package globally using Bun:
 
 ```sh
-bun install -g .
+bun install -g cloudflare-dynamic-dns-service
+```
+
+This will give you access to the interactive `cdds` CLI tool globally.
+
+### Local Development / Testing
+
+If you cloned the repository and want to test it locally, use `bun link` instead of global install to avoid dependency loop errors:
+
+```sh
+bun install
+bun link
 ```
 
 After installation, simply type `cdds` in your terminal to open the interactive setup wizard and service manager.
