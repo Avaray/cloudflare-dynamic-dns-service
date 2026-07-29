@@ -121,7 +121,9 @@ class CloudflareDDNS {
   // Get current external IP using gip
   private async getCurrentIP(): Promise<string> {
     try {
-      const ip = await gip();
+      const ip = await gip({
+        ensure: 3
+      });
       if (!ip) {
         throw new Error("Failed to retrieve IP address - GIP returned null");
       }
