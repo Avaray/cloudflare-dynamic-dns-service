@@ -2,16 +2,16 @@
 
 A lightweight, powerful, and interactive Dynamic DNS (DDNS) client for Cloudflare, built entirely in [Bun](https://bun.sh).
 
-If your Internet Service Provider (ISP) frequently changes your dynamic IP address, and you want to host services on your home network under a static domain name, **CDDS** is the perfect tool for you. It runs efficiently in the background, checks your public IP address, and automatically updates your Cloudflare DNS records whenever your IP changes.
+If your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) frequently changes your dynamic IP address, and you want to host services on your home network under a static domain name, **CDDS** is a tool for you. It runs efficiently in the background, checks your public IP address, and automatically updates your Cloudflare DNS records whenever your IP changes.
 
 ## 🚀 Features
 
-- **Interactive CLI Setup Wizard:** Zero manual `.env` file editing. Just type `cdds` and follow the beautiful terminal UI to configure everything.
+- **Interactive [CLI](https://en.wikipedia.org/wiki/Command-line_interface) Setup Wizard:** Zero manual `.env` file editing. Just type `cdds` and follow the beautiful terminal UI to configure everything.
 - **Service Manager Integrations:** Built-in tools to easily install, pause, or remove the DDNS background service depending on your operating system:
   - **Native Daemon Mode:** Run detached directly via Bun (no external tools required).
-  - **Windows Task Scheduler:** Auto-installs and runs on system boot (Windows).
-  - **Systemd Service:** Native Linux background service integration.
-  - **PM2:** Node.js ecosystem process manager integration.
+  - **[Windows Task Scheduler](https://en.wikipedia.org/wiki/Windows_Task_Scheduler):** Auto-installs and runs on system boot (Windows).
+  - **[Systemd Service](https://en.wikipedia.org/wiki/Systemd):** Native Linux background service integration.
+  - **[PM2](https://pm2.keymetrics.io/):** Node.js ecosystem process manager integration.
 - **Smart DNS Management:**
   - Auto-discovers Cloudflare Zone IDs.
   - Auto-detects your API credential type (Global Key vs Scoped Token).
@@ -20,7 +20,7 @@ If your Internet Service Provider (ISP) frequently changes your dynamic IP addre
 
 ## 📋 Requirements
 
-- [Bun](https://bun.sh/) installed on your machine (`curl -fsSL https://bun.sh/install | bash`).
+- [Bun](https://bun.sh/) installed on your machine.
 - A [Cloudflare account](https://dash.cloudflare.com/sign-up) with a domain added.
 - A Cloudflare [API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) (recommended) or a Global API key.
 
@@ -31,8 +31,6 @@ To get started, install the package globally using Bun:
 ```sh
 bun install -g cloudflare-dynamic-dns-service
 ```
-
-*(Note: If you clone the repository for local development, use `bun install` followed by `bun link` instead).*
 
 ## 🛠️ Usage
 
