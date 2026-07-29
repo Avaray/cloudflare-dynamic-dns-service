@@ -76,7 +76,11 @@ jobs:
       - name: Run Test Suite
         run: bun test
 
-      # 6. Publish to NPM
+      # 6. Build the package to JS for cross-runtime support
+      - name: Build Javascript
+        run: bun run build
+
+      # 7. Publish to NPM
       # For prerelease versions (e.g. 2.0.0-beta.1, 2.0.0-rc.0), the tag is
       # automatically extracted from the version string and passed via --tag.
       # Otherwise, it falls back to the default 'latest' tag.

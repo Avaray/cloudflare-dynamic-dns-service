@@ -2,14 +2,16 @@
   "name": "cloudflare-dynamic-dns-service",
   "version": "1.0.0",
   "description": "Cloudflare Dynamic DNS Service for Bun",
-  "main": "main.ts",
+  "type": "module",
+  "main": "dist/main.js",
   "scripts": {
-    "start": "bun run main.ts",
-    "cli": "bun run cli.tsx",
+    "start": "node dist/main.js",
+    "cli": "node dist/cli.js",
+    "build": "tsup cli.tsx main.ts --format esm --clean",
     "test": "bun test"
   },
   "bin": {
-    "cdds": "./cli.tsx"
+    "cdds": "./dist/cli.js"
   },
   "dependencies": {
     "datr": "^4.0.0",
@@ -20,8 +22,10 @@
     "react": "^19.2.8"
   },
   "devDependencies": {
-    "@types/bun": "^1.3.14",
-    "@types/react": "^19.2.17"
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.17",
+    "tsup": "^8.5.1",
+    "typescript": "^7.0.2"
   },
   "keywords": [
     "cli",

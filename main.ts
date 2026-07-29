@@ -1,5 +1,6 @@
 import gip from "gip";
 import datr from "datr";
+import { promises as fs } from "node:fs";
 
 interface CloudflareConfig {
   apiKey: string;
@@ -97,9 +98,13 @@ class CloudflareDDNS {
       const timeString = datr({ precision: 'ms', separator: '-' });
       const logEntry = `${timeString} > ${newIP}\n`;
 
-      const file = Bun.file(this.ipLogPath);
-      const existingContent = await file.exists() ? await file.text() : "";
-      await Bun.write(this.ipLogPath, existingContent + logEntry);
+      let existingContent = "";
+      try {
+        existingContent = await fs.readFile(this.ipLogPath, "utf8");
+      } catch (err: any) {
+        if (err.code !== "ENOENT") throw err;
+      }
+      await fs.writeFile(this.ipLogPath, existingContent + logEntry, "utf8");
 
       if (this.config.logs) {
         console.log(`IP change logged to file: ${timeString} > ${newIP}`);
@@ -809,7 +814,7 @@ const config: CloudflareConfig = {
   apiKey: process.env.CDDS_API_KEY ?? "your_cloudflare_api_key_here",
   apiKeyType: detectApiKeyType(process.env.CDDS_API_KEY ?? "your_cloudflare_api_key_here"),
   checkIntervalMinutes: parseInt(process.env.CDDS_CHECK_INTERVAL ?? "5"),
-  dryRun: typeof Bun !== "undefined" && Bun.argv.includes("--dry-run"),
+  dryRun: process.argv.includes("--dry-run"),
   email: process.env.CDDS_EMAIL ?? "your_email@example.com",
   ipLogFile: getIPLogFileConfig(),
   logs: process.env.CDDS_LOGS?.toLowerCase() === "true",

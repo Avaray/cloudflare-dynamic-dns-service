@@ -1,10 +1,13 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import React, { useState, useEffect } from 'react';
 import { render, Box, Text, useApp, Newline } from 'ink';
 import SelectInput from 'ink-select-input';
 import TextInput from 'ink-text-input';
 import process from 'process';
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
+import { promises as fsPromises } from 'node:fs';
+
+const fileExists = async (path: string) => { try { await fsPromises.access(path); return true; } catch { return false; } };
 import { appendFileSync } from 'fs';
 import datr from 'datr';
 import { startDaemon, validateConfig, type CloudflareConfig, detectApiKeyType } from './main.ts';
@@ -18,9 +21,9 @@ const logMessage = (msg: string) => {
 
 const parseEnv = async (): Promise<CloudflareConfig | null> => {
 	try {
-		const envFile = Bun.file(process.cwd() + '/.env');
-		if (!(await envFile.exists())) return null;
-		const text = await envFile.text();
+		const envPath = process.cwd() + '/.env';
+		if (!(await fileExists(envPath))) return null;
+		const text = await fsPromises.readFile(envPath, 'utf8');
 		const lines = text.split('\n');
 		const env: Record<string, string> = {};
 		for (const line of lines) {
@@ -97,7 +100,7 @@ const EnvWizard = ({ onComplete, initialConfig }: { onComplete: (installNow: boo
 			envContent += `CDDS_IP_LOGFILE=${newConfig.ipLogFile}\n`;
 			envContent += `CDDS_PROXIED=${newConfig.proxied}\n`;
 
-			await Bun.write(process.cwd() + '/.env', envContent);
+			await fsPromises.writeFile(process.cwd() + '/.env', envContent, "utf8");
 			logMessage("Generated .env file via Wizard.");
 		}
 	};
@@ -187,7 +190,7 @@ SyslogIdentifier=cdds
 [Install]
 WantedBy=multi-user.target
 `;
-				await Bun.write('/etc/systemd/system/cdds.service', serviceContent);
+				await fsPromises.writeFile('/etc/systemd/system/cdds.service', serviceContent, "utf8");
 				execSync('systemctl daemon-reload');
 				execSync('systemctl enable cdds');
 				execSync('systemctl start cdds');
@@ -292,7 +295,7 @@ const PM2Manager = ({ onBack }: { onBack: () => void }) => {
   ],
 };
 `;
-				await Bun.write(process.cwd() + '/pm2.config.js', pm2Content);
+				await fsPromises.writeFile(process.cwd() + '/pm2.config.js', pm2Content, "utf8");
 				execSync('pm2 start pm2.config.js');
 				execSync('pm2 save');
 				setStatus('PM2 Service installed and started successfully!');
@@ -511,16 +514,16 @@ const DaemonManager = ({ onBack, pidFile }: { onBack: () => void; pidFile: strin
 
 	const refreshStatus = async () => {
 		try {
-			const f = Bun.file(pidFile);
-			if (!(await f.exists())) { setRunning(false); setPid(null); return; }
-			const stored = parseInt(await f.text(), 10);
+			const _f = pidFile;
+			if (!(await fileExists(_f))) { setRunning(false); setPid(null); return; }
+			const stored = parseInt(await fsPromises.readFile(_f, 'utf8'), 10);
 			if (!stored || isNaN(stored)) { setRunning(false); setPid(null); return; }
 			try {
 				process.kill(stored, 0);
 				setPid(stored); setRunning(true);
 			} catch {
 				setPid(null); setRunning(false);
-				await Bun.write(pidFile, '');
+				await fsPromises.writeFile(pidFile, '', "utf8");
 			}
 		} catch { setRunning(false); setPid(null); }
 	};
@@ -539,21 +542,21 @@ const DaemonManager = ({ onBack, pidFile }: { onBack: () => void; pidFile: strin
 			return;
 		}
 		try {
-			const f = Bun.file(pidFile);
-			if (await f.exists()) {
-				const stored = parseInt(await f.text(), 10);
+			const _f = pidFile;
+			if (await fileExists(_f)) {
+				const stored = parseInt(await fsPromises.readFile(_f, 'utf8'), 10);
 				if (stored && !isNaN(stored)) {
 					try { process.kill(stored, 0); setError(`Daemon already running (PID: ${stored}).`); return; } catch { }
 				}
 			}
 			const bunExec = process.execPath;
 			const scriptPath = new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
-			const child = Bun.spawn([bunExec, scriptPath, 'start'], {
+			const child = spawn(bunExec, [scriptPath, 'start'], {
 				detached: true,
 				stdio: ['ignore', 'ignore', 'ignore'],
 				env: { ...process.env },
 			});
-			await Bun.write(pidFile, child.pid.toString());
+			await fsPromises.writeFile(pidFile, child.pid?.toString() || '', "utf8");
 			child.unref();
 			logMessage(`Daemon: Started (PID: ${child.pid})`);
 			setMessage(`Daemon started! (PID: ${child.pid})`);
@@ -567,18 +570,18 @@ const DaemonManager = ({ onBack, pidFile }: { onBack: () => void; pidFile: strin
 		setMessage('');
 		setError('');
 		try {
-			const f = Bun.file(pidFile);
-			if (!(await f.exists())) { setError('Daemon is not running.'); return; }
-			const stored = parseInt(await f.text(), 10);
+			const _f = pidFile;
+			if (!(await fileExists(_f))) { setError('Daemon is not running.'); return; }
+			const stored = parseInt(await fsPromises.readFile(_f, 'utf8'), 10);
 			if (!stored || isNaN(stored)) { setError('Invalid PID file.'); return; }
 			process.kill(stored, 'SIGTERM');
-			await Bun.write(pidFile, '');
+			await fsPromises.writeFile(pidFile, '', "utf8");
 			logMessage(`Daemon: Stopped (PID: ${stored})`);
 			setMessage(`Daemon stopped (PID: ${stored}).`);
 			await refreshStatus();
 		} catch (err: any) {
 			if (err.code === 'ESRCH') {
-				await Bun.write(pidFile, '');
+				await fsPromises.writeFile(pidFile, '', "utf8");
 				setMessage('Daemon was not running (stale PID removed).');
 				await refreshStatus();
 			} else {
@@ -707,8 +710,7 @@ if (command === 'start') {
 	// Background mode - detached process
 	const existingPid = await (async () => {
 		try {
-			const f = Bun.file(PID_FILE);
-			if (await f.exists()) return parseInt(await f.text(), 10);
+			if (await fileExists(PID_FILE)) return parseInt(await fsPromises.readFile(PID_FILE, 'utf8'), 10);
 		} catch { }
 		return null;
 	})();
@@ -721,21 +723,21 @@ if (command === 'start') {
 			process.exit(1);
 		} catch {
 			// Process is gone, stale PID file - clean up and continue
-			await Bun.write(PID_FILE, '');
+			await fsPromises.writeFile(PID_FILE, '', "utf8");
 		}
 	}
 
 	const bunExec = process.execPath;
 	const scriptPath = new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 
-	const child = Bun.spawn([bunExec, scriptPath, 'start'], {
+	const child = spawn(bunExec, [scriptPath, 'start'], {
 		detached: true,
 		stdio: ['ignore', 'ignore', 'ignore'],
 		env: { ...process.env },
 	});
 
 	const pid = child.pid;
-	await Bun.write(PID_FILE, pid.toString());
+	await fsPromises.writeFile(PID_FILE, pid?.toString() || '', "utf8");
 	child.unref();
 
 	console.log(`CDDS daemon started in background (PID: ${pid})`);
@@ -755,12 +757,12 @@ if (command === 'start') {
 			process.exit(1);
 		}
 		process.kill(pid, 'SIGTERM');
-		await Bun.write(PID_FILE, '');
+		await fsPromises.writeFile(PID_FILE, '', "utf8");
 		console.log(`CDDS daemon stopped (PID: ${pid}).`);
 	} catch (err: any) {
 		if (err.code === 'ESRCH') {
 			console.log("CDDS daemon is not running (stale PID file removed).");
-			await Bun.write(PID_FILE, '');
+			await fsPromises.writeFile(PID_FILE, '', "utf8");
 		} else {
 			console.error(`Failed to stop daemon: ${err.message}`);
 			process.exit(1);
@@ -784,7 +786,7 @@ if (command === 'start') {
 			console.log(`CDDS daemon: RUNNING (PID: ${pid})`);
 		} catch {
 			console.log(`CDDS daemon: NOT running (stale PID: ${pid}).`);
-			await Bun.write(PID_FILE, '');
+			await fsPromises.writeFile(PID_FILE, '', "utf8");
 		}
 	} catch (err: any) {
 		console.error(`Status check failed: ${err.message}`);
