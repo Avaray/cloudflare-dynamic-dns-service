@@ -57,16 +57,16 @@ When you run `cdds`, you will be greeted by an interactive menu with the followi
 3. **Manage Service**: Depending on your platform, you'll see options to install `cdds` as a background service via **Built-in Daemon**, **Windows Task Scheduler**, **Systemd**, or **PM2**.
 
 ### Manual Mode
-If you prefer not to use the interactive CLI or want to run the script inside a Docker container, you can bypass the UI by running:
+If you prefer not to use the interactive CLI, you can bypass the UI by running:
 
 ```sh
 cdds start
 ```
-This command runs the updater directly in the foreground, using the `.env` file present in the current working directory.
+This command runs the updater directly in the foreground, reading the `.env` file from the **current working directory**.
 
 ## ⚙️ Configuration (.env)
 
-The `cdds` CLI wizard generates a `.env` file for you automatically. However, if you prefer to manage it manually (e.g., for Docker), here is the reference:
+The `cdds` CLI wizard automatically generates a `.env` file in the **current working directory** (wherever you run `cdds` from). Make sure to always run `cdds start` or `cdds daemon` from the same directory. If you prefer to manage the file manually, here is the reference:
 
 | Environment Variable    | Description                                                                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
