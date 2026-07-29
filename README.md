@@ -1,19 +1,13 @@
 # **CDDS** ![](https://api.iconify.design/logos:cloudflare-icon.svg) Cloudflare Dynamic DNS Service
 
-A lightweight, interactive Dynamic DNS (DDNS) client for [Cloudflare](https://www.cloudflare.com/).
+A lightweight [Dynamic DNS](https://en.wikipedia.org/wiki/Dynamic_DNS) (DDNS) client for [Cloudflare](https://cloudflare.com) users who want to use their own
+[domains](https://en.wikipedia.org/wiki/Domain_name) for home-hosted services.
 
-If your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) frequently changes your dynamic IP address, and you want to host services on your home network under a static domain name, **CDDS** is a tool for you. It runs efficiently in the background, checks your public [IPv4 address](https://en.wikipedia.org/wiki/IPv4), and automatically updates your Cloudflare [DNS records](https://en.wikipedia.org/wiki/Domain_Name_System) whenever your IP changes.
-
-Created for [Cloudflare](https://cloudflare.com) users who want to use their own
-[subdomains](https://en.wikipedia.org/wiki/Subdomain) (or [domains](https://en.wikipedia.org/wiki/Domain_name)) for dynamic DNS.
+If your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) frequently changes your IP address, and you want to host services on your home network under a static domain name, **CDDS** is a tool for you. It runs efficiently in the background, checks your public [IPv4 address](https://en.wikipedia.org/wiki/IPv4), and automatically updates your Cloudflare [DNS records](https://en.wikipedia.org/wiki/Domain_Name_System) whenever your IP changes.
 
 It is slightly more complex alternative to services like
 [No-IP](http://www.noip.com/), [Dynu](http://www.dynu.com/),
-[ClouDNS](https://www.cloudns.net/), etc. It will be useful when you don't have a static IP address 
-(when your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) changes it
-frequently), and you would like to always connect to the same address. It will
-monitor your external IP address and update your Cloudflare DNS records
-automatically.
+[ClouDNS](https://www.cloudns.net/), because it requires having a domain registered with Cloudflare.
 
 ## 🚀 Features
 
