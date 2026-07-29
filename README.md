@@ -8,7 +8,7 @@ If your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) frequentl
 
 - **Interactive [CLI](https://en.wikipedia.org/wiki/Command-line_interface) Setup Wizard:** Zero manual `.env` file editing. Just type `cdds` and follow terminal UI to configure everything.
 - **Service Manager Integrations:** Built-in tools to easily manage the DDNS background service depending on your operating system:
-  - **Native Daemon Mode:** Run detached directly via Bun (no external tools required).
+  - **Native Daemon Mode:** Run detached natively (no external tools required).
   - **[Windows Task Scheduler](https://en.wikipedia.org/wiki/Windows_Task_Scheduler):** Auto-installs and runs on system boot (Windows).
   - **[Systemd Service](https://en.wikipedia.org/wiki/Systemd):** Native Linux background service integration.
   - **[PM2](https://pm2.keymetrics.io/):** Node.js ecosystem process manager integration.
@@ -20,15 +20,22 @@ If your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) frequentl
 
 ## 📋 Requirements
 
-- [Bun](https://bun.sh/) installed on your machine.
+- A JavaScript runtime: [Node.js](https://nodejs.org/) (v18+), [Bun](https://bun.sh/), or [Deno](https://deno.com/).
 - A [Cloudflare account](https://dash.cloudflare.com/sign-up) with a domain added.
 - A Cloudflare [API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) (recommended) or a Global API key.
 
 ## 📦 Installation
 
-To get started, install the package globally using Bun:
+To get started, install the package globally using your preferred package manager:
 
 ```sh
+# using npm
+npm install -g cloudflare-dynamic-dns-service
+
+# using pnpm
+pnpm install -g cloudflare-dynamic-dns-service
+
+# using bun
 bun install -g cloudflare-dynamic-dns-service
 ```
 
