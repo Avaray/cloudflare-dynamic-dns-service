@@ -15,11 +15,11 @@ jobs:
     steps:
       # 1. Checkout the repository code
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # 2. Setup Node.js (Needed to securely interact with NPM registry)
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
@@ -53,11 +53,11 @@ jobs:
     steps:
       # 1. Checkout the repository code again for this job
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # 2. Setup Node.js (Needed for NPM publishing and Provenance)
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
