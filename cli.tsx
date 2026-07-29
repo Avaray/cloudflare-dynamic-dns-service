@@ -381,7 +381,7 @@ const App = () => {
 	return (
 		<Box flexDirection="column" padding={1}>
 			<Box borderStyle="single" borderColor="blue" padding={1} marginBottom={1}>
-				<Text bold color="blue">CDDS - Service Manager</Text>
+				<Text bold color="blue">Cloudflare Dynamic DNS Service (CDDS)</Text>
 			</Box>
 
 			{view === 'menu' && (
