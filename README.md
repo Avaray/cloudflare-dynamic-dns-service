@@ -17,15 +17,14 @@ automatically.
 
 ## Requirements
 
-- [Deno](https://docs.deno.com/runtime/getting_started/installation/) or
-  [Bun](https://bun.com/docs/installation) as your JavaScript runtime.
+- [Bun](https://bun.com/docs/installation) as your JavaScript runtime.
 - [Cloudflare account](https://dash.cloudflare.com/sign-up) with
   [added website](https://developers.cloudflare.com/fundamentals/setup/account-setup/add-site/)
   and
   [API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/)
   or
   [Global API key](https://developers.cloudflare.com/fundamentals/api/get-started/keys/).
-- Any process manager (like [PM2](https://pm2.keymetrics.io/) or
+- Process manager (like [PM2](https://pm2.keymetrics.io/) or
   [systemd.service](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html))
   if you want to run it for a long time.
 
