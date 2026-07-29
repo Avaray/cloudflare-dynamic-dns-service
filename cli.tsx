@@ -352,6 +352,144 @@ const PM2Manager = ({ onBack }: { onBack: () => void }) => {
 	);
 };
 
+const isWindows = process.platform === 'win32';
+
+const isPM2Available = (): boolean => {
+	try { execSync(isWindows ? 'where pm2' : 'which pm2', { stdio: 'ignore' }); return true; } catch { return false; }
+};
+
+const isSystemdAvailable = (): boolean => {
+	if (isWindows) return false;
+	try { execSync('systemctl --version', { stdio: 'ignore' }); return true; } catch { return false; }
+};
+
+const TASK_NAME = 'CDDS-DynamicDNS';
+
+const TaskSchedulerManager = ({ onBack }: { onBack: () => void }) => {
+	const [status, setStatus] = useState<string>('');
+	const [taskStatus, setTaskStatus] = useState<string>('Checking...');
+	const [error, setError] = useState<string>('');
+
+	const checkStatus = () => {
+		try {
+			const out = execSync(`schtasks /query /tn "${TASK_NAME}" /fo LIST`, { encoding: 'utf8' });
+			const statusMatch = out.match(/Status:\s+(.+)/i);
+			setTaskStatus(statusMatch ? statusMatch[1].trim() : 'Unknown');
+		} catch {
+			setTaskStatus('Not Installed');
+		}
+	};
+
+	useEffect(() => { checkStatus(); }, []);
+
+	const validateAndRun = async (action: () => void) => {
+		setError(''); setStatus('');
+		try {
+			const cfg = await parseEnv();
+			if (!cfg) throw new Error('No .env file found. Please run the configuration wizard first.');
+			validateConfig(cfg);
+			action();
+		} catch (err: any) {
+			setError(`Validation Error: ${err.message}`);
+		}
+	};
+
+	const handleInstall = () => {
+		validateAndRun(() => {
+			try {
+				const bunExec = process.execPath;
+				const scriptPath = new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+				execSync(`schtasks /create /tn "${TASK_NAME}" /tr "\"${bunExec}\" \"${scriptPath}\" start" /sc ONSTART /ru SYSTEM /f`);
+				execSync(`schtasks /run /tn "${TASK_NAME}"`);
+				setStatus('Task installed and started successfully!');
+				logMessage('TaskScheduler: Installed CDDS-DynamicDNS task');
+				checkStatus();
+			} catch (e: any) {
+				setError(`Installation failed (run as Administrator?): ${e.message}`);
+				logMessage(`TaskScheduler Error: ${e.message}`);
+			}
+		});
+	};
+
+	const handlePause = () => {
+		validateAndRun(() => {
+			try {
+				try { execSync(`schtasks /end /tn "${TASK_NAME}"`); } catch { }
+				execSync(`schtasks /change /tn "${TASK_NAME}" /disable`);
+				setStatus('Task stopped and disabled.');
+				logMessage('TaskScheduler: Stopped CDDS-DynamicDNS task');
+				checkStatus();
+			} catch (e: any) {
+				setError(`Failed to stop: ${e.message}`);
+			}
+		});
+	};
+
+	const handleResume = () => {
+		validateAndRun(() => {
+			try {
+				execSync(`schtasks /change /tn "${TASK_NAME}" /enable`);
+				execSync(`schtasks /run /tn "${TASK_NAME}"`);
+				setStatus('Task re-enabled and running.');
+				logMessage('TaskScheduler: Resumed CDDS-DynamicDNS task');
+				checkStatus();
+			} catch (e: any) {
+				setError(`Failed to resume: ${e.message}`);
+			}
+		});
+	};
+
+	const handleRemove = () => {
+		validateAndRun(() => {
+			try {
+				try { execSync(`schtasks /end /tn "${TASK_NAME}"`); } catch { }
+				execSync(`schtasks /delete /tn "${TASK_NAME}" /f`);
+				setStatus('Task completely removed.');
+				logMessage('TaskScheduler: Removed CDDS-DynamicDNS task');
+				checkStatus();
+			} catch (e: any) {
+				setError(`Removal failed: ${e.message}`);
+			}
+		});
+	};
+
+	const notInstalled = taskStatus === 'Not Installed';
+	const items = [
+		...(notInstalled ? [{ label: 'Install / Enable at Boot', value: 'install' }] : []),
+		...(!notInstalled ? [{ label: 'Stop & Disable', value: 'pause' }] : []),
+		...(!notInstalled ? [{ label: 'Enable & Run Now', value: 'resume' }] : []),
+		...(!notInstalled ? [{ label: 'Uninstall / Remove', value: 'remove' }] : []),
+		{ label: 'Refresh Status', value: 'refresh' },
+		{ label: 'Go Back', value: 'back' },
+	];
+
+	return (
+		<Box flexDirection="column" marginY={1}>
+			<Text color="cyan" bold>--- WINDOWS TASK SCHEDULER ---</Text>
+			<Newline />
+			<Box>
+				<Text bold>Task Status: </Text>
+				<Text color={notInstalled ? 'red' : 'green'} bold>{taskStatus}</Text>
+			</Box>
+			<Newline />
+			{error && <Text color="red">ERROR: {error}</Text>}
+			{status && <Text color="green">{status}</Text>}
+			<SelectInput
+				items={items}
+				onSelect={(item) => {
+					setStatus(''); setError('');
+					if (item.value === 'install') handleInstall();
+					if (item.value === 'pause') handlePause();
+					if (item.value === 'resume') handleResume();
+					if (item.value === 'remove') handleRemove();
+					if (item.value === 'refresh') checkStatus();
+					if (item.value === 'back') onBack();
+				}}
+			/>
+		</Box>
+	);
+};
+
 const DaemonManager = ({ onBack, pidFile }: { onBack: () => void; pidFile: string }) => {
 	const [pid, setPid] = useState<number | null>(null);
 	const [running, setRunning] = useState<boolean | null>(null);
@@ -476,6 +614,8 @@ const App = () => {
 	const { exit } = useApp();
 	const [view, setView] = useState('menu');
 	const [existingConfig, setExistingConfig] = useState<CloudflareConfig | null>(null);
+	const [pm2Available] = useState(() => isPM2Available());
+	const [systemdAvailable] = useState(() => isSystemdAvailable());
 	const PID_FILE_PATH = process.cwd() + '/cdds.pid';
 
 	useEffect(() => {
@@ -495,8 +635,9 @@ const App = () => {
 	const menuItems = [
 		{ label: existingConfig ? 'Edit existing .env Configuration' : 'Run .env Configuration Wizard', value: 'env' },
 		{ label: 'Manage Daemon (built-in)', value: 'daemon' },
-		{ label: 'Manage Systemd Service', value: 'systemd' },
-		{ label: 'Manage PM2 Service', value: 'pm2' },
+		...(systemdAvailable ? [{ label: 'Manage Systemd Service', value: 'systemd' }] : []),
+		...(isWindows ? [{ label: 'Manage Windows Task Scheduler', value: 'taskscheduler' }] : []),
+		...(pm2Available ? [{ label: 'Manage PM2 Service', value: 'pm2' }] : []),
 		{ label: 'Exit', value: 'exit' }
 	];
 
@@ -517,8 +658,9 @@ const App = () => {
 					<Text>Which service manager would you like to use?</Text>
 					<SelectInput
 						items={[
-							{ label: 'Systemd (Debian/Ubuntu, requires root)', value: 'systemd' },
-							{ label: 'PM2 (Node.js ecosystem)', value: 'pm2' },
+							...(systemdAvailable ? [{ label: 'Systemd (Debian/Ubuntu, requires root)', value: 'systemd' }] : []),
+							...(isWindows ? [{ label: 'Windows Task Scheduler (requires Administrator)', value: 'taskscheduler' }] : []),
+							...(pm2Available ? [{ label: 'PM2 (detected in PATH)', value: 'pm2' }] : []),
 							{ label: 'Nevermind, return to main menu', value: 'menu' }
 						]}
 						onSelect={handleSelect}
@@ -530,6 +672,7 @@ const App = () => {
 				<EnvWizard initialConfig={existingConfig} onComplete={(installNow) => setView(installNow ? 'install_prompt' : 'menu')} />
 			)}
 			{view === 'daemon' && <DaemonManager pidFile={PID_FILE_PATH} onBack={() => setView('menu')} />}
+			{view === 'taskscheduler' && <TaskSchedulerManager onBack={() => setView('menu')} />}
 			{view === 'systemd' && <SystemdManager onBack={() => setView('menu')} />}
 			{view === 'pm2' && <PM2Manager onBack={() => setView('menu')} />}
 		</Box>
