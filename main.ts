@@ -1,12 +1,11 @@
 import gip from "gip";
 import process from "node:process";
-import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
-import { dirname, extname, join } from "node:path";
 
 interface CloudflareConfig {
   apiKey: string;
   apiKeyType: "key" | "token";
   checkIntervalMinutes?: number;
+  dryRun: boolean;
   email: string;
   ipLogFile?: string | boolean;
   logs: boolean;
@@ -75,41 +74,9 @@ class CloudflareDDNS {
 
     try {
       if (this.config.ipLogFile === true) {
-        // Use current directory with default filename
-        this.ipLogPath = join(process.cwd(), "cdds.log");
+        this.ipLogPath = "cdds.log";
       } else if (typeof this.config.ipLogFile === "string") {
-        const inputPath = this.config.ipLogFile;
-
-        // Check if path exists
-        if (existsSync(inputPath)) {
-          const stats = statSync(inputPath);
-          if (stats.isDirectory()) {
-            // It's a directory, use default filename
-            this.ipLogPath = join(inputPath, "cdds.log");
-          } else {
-            // It's a file, use as is
-            this.ipLogPath = inputPath;
-          }
-        } else {
-          // Path doesn't exist, check if it has an extension
-          const ext = extname(inputPath);
-          if (ext) {
-            // Has extension, treat as file path
-            this.ipLogPath = inputPath;
-            // Ensure directory exists
-            const dir = dirname(inputPath);
-            if (!existsSync(dir)) {
-              mkdirSync(dir, { recursive: true });
-            }
-          } else {
-            // No extension, treat as directory
-            this.ipLogPath = join(inputPath, "cdds.log");
-            // Ensure directory exists
-            if (!existsSync(inputPath)) {
-              mkdirSync(inputPath, { recursive: true });
-            }
-          }
-        }
+        this.ipLogPath = this.config.ipLogFile;
       }
     } catch (error) {
       if (this.config.logs) {
@@ -122,7 +89,7 @@ class CloudflareDDNS {
   }
 
   // Log IP change to file
-  private logIPChange(newIP: string): void {
+  private async logIPChange(newIP: string): Promise<void> {
     if (!this.ipLogPath) return;
 
     try {
@@ -135,7 +102,9 @@ class CloudflareDDNS {
       });
       const logEntry = `${timeString} > ${newIP}\n`;
 
-      writeFileSync(this.ipLogPath, logEntry, { flag: "a" });
+      const file = Bun.file(this.ipLogPath);
+      const existingContent = await file.exists() ? await file.text() : "";
+      await Bun.write(this.ipLogPath, existingContent + logEntry);
 
       if (this.config.logs) {
         console.log(`IP change logged to file: ${timeString} > ${newIP}`);
@@ -366,10 +335,16 @@ class CloudflareDDNS {
     for (const record of toDelete) {
       try {
         const url = `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${record.id}`;
-        await fetch(url, { method: "DELETE", headers });
-        if (this.config.logs) {
-          console.log(`Deleted duplicate record: ${record.id} (IP: ${record.content})`);
+        
+        if (this.config.dryRun) {
+          console.log(`[DRY RUN] Would delete duplicate record: ${record.id} (IP: ${record.content})`);
+        } else {
+          await fetch(url, { method: "DELETE", headers });
+          if (this.config.logs) {
+            console.log(`Deleted duplicate record: ${record.id} (IP: ${record.content})`);
+          }
         }
+        
         // Add delay between deletions
         await this.sleep(1000);
       } catch (error) {
@@ -463,6 +438,11 @@ class CloudflareDDNS {
       } else {
         headers["X-Auth-Email"] = this.config.email;
         headers["X-Auth-Key"] = this.config.apiKey;
+      }
+
+      if (this.config.dryRun) {
+        console.log(`[DRY RUN] Would create DNS record: ${target} → ${newIP}`);
+        return true;
       }
 
       const response = await fetch(url, {
@@ -559,6 +539,11 @@ class CloudflareDDNS {
       } else {
         headers["X-Auth-Email"] = this.config.email;
         headers["X-Auth-Key"] = this.config.apiKey;
+      }
+
+      if (this.config.dryRun) {
+        console.log(`[DRY RUN] Would update DNS record: ${target} → ${newIP}`);
+        return true;
       }
 
       const response = await fetch(url, {
@@ -712,7 +697,7 @@ class CloudflareDDNS {
 
       // Check if IP changed and log it
       if (this.lastKnownIP && this.currentIP !== this.lastKnownIP) {
-        this.logIPChange(this.currentIP);
+        await this.logIPChange(this.currentIP);
       }
 
       // Process each target
@@ -745,11 +730,13 @@ class CloudflareDDNS {
       console.log(`Targets: ${this.config.targets.join(", ")}`);
       console.log(`Update interval: ${intervalMinutes} minutes`);
       console.log(`Zone ID: ${this.config.zoneId || "Auto-discover"}`);
-      console.log(`API Key Type: ${this.config.apiKeyType}`);
+      console.log(`API Key Type: ${this.config.apiKeyType} (Auto-detected)`);
       console.log(`TTL: ${this.config.ttl} seconds`);
       console.log(`Will auto-discover record IDs for each target`);
       console.log(`Logs: ${this.config.logs ? "Enabled" : "Disabled"}`);
-      console.log(`IP Logging to file: ${this.ipLogPath ? this.ipLogPath : "Disabled"}`);
+      if (this.config.dryRun) {
+        console.log(`Dry Run: Enabled (API calls will be bypassed)`);
+      }
     }
 
     // Initial check on startup
@@ -771,6 +758,9 @@ class CloudflareDDNS {
           this.config.targets.length > 1 ? "s" : ""
         } every ${intervalMinutes} minutes...`,
       );
+      if (this.ipLogPath) {
+        console.log(`IP Logging to file: ${this.ipLogPath}`);
+      }
     }
   }
 }
@@ -793,11 +783,6 @@ function getTargets(): string[] {
     return parseTargets(process.env.CDDS_TARGETS);
   }
 
-  // Otherwise, fall back to CDDS_TARGET
-  if (process.env.CDDS_TARGET && process.env.CDDS_TARGET.trim() !== "") {
-    return [process.env.CDDS_TARGET.trim()];
-  }
-
   // Final fallback to example domain
   return ["subdomain.yourdomain.com"];
 }
@@ -814,11 +799,20 @@ function getIPLogFileConfig(): string | boolean | undefined {
   return envValue;
 }
 
+// Auto-detect API key type
+function detectApiKeyType(key: string): "key" | "token" {
+  if (/^[0-9a-f]{37}$/i.test(key)) {
+    return "key";
+  }
+  return "token";
+}
+
 // Configuration
 const config: CloudflareConfig = {
   apiKey: process.env.CDDS_API_KEY ?? "your_cloudflare_api_key_here",
-  apiKeyType: (process.env.CDDS_API_KEY_TYPE as "key" | "token") ?? "key",
+  apiKeyType: detectApiKeyType(process.env.CDDS_API_KEY ?? "your_cloudflare_api_key_here"),
   checkIntervalMinutes: parseInt(process.env.CDDS_CHECK_INTERVAL ?? "5"),
+  dryRun: typeof Bun !== "undefined" && Bun.argv.includes("--dry-run"),
   email: process.env.CDDS_EMAIL ?? "your_email@example.com",
   ipLogFile: getIPLogFileConfig(),
   logs: process.env.CDDS_LOGS?.toLowerCase() === "true",
@@ -829,8 +823,8 @@ const config: CloudflareConfig = {
 
 // Validate configuration
 function validateConfig(config: CloudflareConfig): void {
-  if (!config.email || config.email === "your_email@example.com") {
-    if (config.apiKeyType === "key") {
+  if (config.apiKeyType === "key") {
+    if (!config.email || config.email === "your_email@example.com") {
       throw new Error(
         "Please set your Cloudflare email (CDDS_EMAIL environment variable) when using API key",
       );
@@ -849,9 +843,6 @@ function validateConfig(config: CloudflareConfig): void {
       "Please set your target domain(s) (CDDS_TARGETS environment variable - comma-separated for multiple targets)",
     );
   }
-  if (!["key", "token"].includes(config.apiKeyType)) {
-    throw new Error("CDDS_API_KEY_TYPE must be either 'key' or 'token'");
-  }
   if (config.ttl < 60) {
     throw new Error("TTL must be at least 60 seconds");
   }
@@ -861,7 +852,7 @@ function validateConfig(config: CloudflareConfig): void {
 }
 
 // Export the class for CLI usage
-export { CloudflareDDNS };
+export { CloudflareDDNS, detectApiKeyType, getTargets, validateConfig, type CloudflareConfig };
 
 // Main execution
 if (import.meta.main) {
@@ -878,7 +869,6 @@ if (import.meta.main) {
       `CDDS_EMAIL=your_email@example.com (required for API key type)`,
     );
     console.error(`CDDS_API_KEY=your_api_key_or_token`);
-    console.error(`CDDS_API_KEY_TYPE=key (or 'token')`);
     console.error(
       `CDDS_TARGETS=subdomain.domain.com,another.domain.com (comma-separated)`,
     );
