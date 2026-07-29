@@ -31,18 +31,21 @@ automatically.
 
 ## Installation
 
-### Using [Bun](https://bun.sh/) (Recommended)
+### Global Installation (Recommended)
+
+You can install the package globally using Bun to get access to the interactive `cdds` CLI tool.
+
+```sh
+bun install -g .
+```
+
+After installation, simply type `cdds` in your terminal to open the interactive setup wizard, or `cdds start` to run the daemon.
+
+### Local Installation
 
 ```sh
 bun install
-bun run main.ts
-```
-
-### Using Node.js
-
-```sh
-npm install
-node main.ts
+bun run cli.tsx
 ```
 
 ## Configuration

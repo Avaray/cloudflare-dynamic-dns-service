@@ -220,7 +220,7 @@ class CloudflareDDNS {
         return null;
       }
 
-      const data: CloudflareZoneResponse = await response.json();
+      const data = (await response.json()) as CloudflareZoneResponse;
 
       if (!data.success) {
         if (this.config.logs && data.errors.length > 0) {
@@ -280,7 +280,7 @@ class CloudflareDDNS {
         headers,
       });
 
-      const data: CloudflareResponse = await response.json();
+      const data = (await response.json()) as CloudflareResponse;
 
       if (!data.success) {
         throw new Error(
@@ -451,7 +451,7 @@ class CloudflareDDNS {
         body: JSON.stringify(createData),
       });
 
-      const data: CloudflareResponse = await response.json();
+      const data = (await response.json()) as CloudflareResponse;
 
       if (!data.success) {
         // Check if error is because record already exists
@@ -552,7 +552,7 @@ class CloudflareDDNS {
         body: JSON.stringify(updateData),
       });
 
-      const data: CloudflareResponse = await response.json();
+      const data = (await response.json()) as CloudflareResponse;
 
       if (!data.success) {
         throw new Error(
@@ -855,7 +855,7 @@ function validateConfig(config: CloudflareConfig): void {
 export { CloudflareDDNS, detectApiKeyType, getTargets, validateConfig, type CloudflareConfig };
 
 // Main execution
-if (import.meta.main) {
+export async function startDaemon() {
   try {
     validateConfig(config);
     const ddnsService = new CloudflareDDNS(config);
@@ -879,4 +879,8 @@ if (import.meta.main) {
     console.error(`CDDS_IP_LOGFILE=true (or path to directory/file)`);
     process.exit(1);
   }
+}
+
+if (import.meta.main) {
+  await startDaemon();
 }
