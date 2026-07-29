@@ -146,3 +146,8 @@ package.lock*
 
 # PNPM
 pnpm-lock.yaml
+
+# CLI Templates and Logs
+cdds.service
+pm2.config.js
+cli-manager.log
