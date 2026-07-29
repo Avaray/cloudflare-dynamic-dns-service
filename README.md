@@ -27,7 +27,7 @@ It is slightly more complex alternative to services like
 
 - A JavaScript runtime: [Node.js](https://nodejs.org/) (v18+), [Bun](https://bun.sh/), or [Deno](https://deno.com/).
 - A [Cloudflare account](https://dash.cloudflare.com/sign-up) with a domain added.
-- A Cloudflare [API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) (recommended) or a Global API key.
+- A Cloudflare [API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) (recommended) or a [Global API key](https://developers.cloudflare.com/fundamentals/api/get-started/keys/).
 
 ## 📦 Installation
 
