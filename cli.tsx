@@ -413,12 +413,116 @@ const App = () => {
 	);
 };
 
+const PID_FILE = process.cwd() + '/cdds.pid';
+
 const args = process.argv.slice(2);
-if (args[0] === 'start') {
+const command = args[0];
+
+if (command === 'start') {
+	// Foreground mode - blocks terminal
 	startDaemon().catch((err) => {
 		console.error(err);
 		process.exit(1);
 	});
+} else if (command === 'daemon') {
+	// Background mode - detached process
+	const existingPid = await (async () => {
+		try {
+			const f = Bun.file(PID_FILE);
+			if (await f.exists()) return parseInt(await f.text(), 10);
+		} catch { }
+		return null;
+	})();
+
+	if (existingPid) {
+		try {
+			// Check if the process is still running
+			process.kill(existingPid, 0);
+			console.error(`CDDS daemon is already running (PID: ${existingPid}). Use 'cdds stop' first.`);
+			process.exit(1);
+		} catch {
+			// Process is gone, stale PID file - clean up and continue
+			await Bun.write(PID_FILE, '');
+		}
+	}
+
+	const bunExec = process.execPath;
+	const scriptPath = new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+
+	const child = Bun.spawn([bunExec, scriptPath, 'start'], {
+		detached: true,
+		stdio: ['ignore', 'ignore', 'ignore'],
+		env: { ...process.env },
+	});
+
+	const pid = child.pid;
+	await Bun.write(PID_FILE, pid.toString());
+	child.unref();
+
+	console.log(`CDDS daemon started in background (PID: ${pid})`);
+	console.log(`PID saved to: ${PID_FILE}`);
+	console.log(`Use 'cdds status' to check, 'cdds stop' to stop.`);
+} else if (command === 'stop') {
+	// Stop background daemon
+	try {
+		const f = Bun.file(PID_FILE);
+		if (!(await f.exists())) {
+			console.error("No PID file found. CDDS daemon does not appear to be running.");
+			process.exit(1);
+		}
+		const pid = parseInt(await f.text(), 10);
+		if (!pid || isNaN(pid)) {
+			console.error("Invalid PID file. Try removing cdds.pid manually.");
+			process.exit(1);
+		}
+		process.kill(pid, 'SIGTERM');
+		await Bun.write(PID_FILE, '');
+		console.log(`CDDS daemon stopped (PID: ${pid}).`);
+	} catch (err: any) {
+		if (err.code === 'ESRCH') {
+			console.log("CDDS daemon is not running (stale PID file removed).");
+			await Bun.write(PID_FILE, '');
+		} else {
+			console.error(`Failed to stop daemon: ${err.message}`);
+			process.exit(1);
+		}
+	}
+} else if (command === 'status') {
+	// Check daemon status
+	try {
+		const f = Bun.file(PID_FILE);
+		if (!(await f.exists())) {
+			console.log("CDDS daemon: NOT running (no PID file found).");
+			process.exit(0);
+		}
+		const pid = parseInt(await f.text(), 10);
+		if (!pid || isNaN(pid)) {
+			console.log("CDDS daemon: NOT running (invalid PID file).");
+			process.exit(0);
+		}
+		try {
+			process.kill(pid, 0);
+			console.log(`CDDS daemon: RUNNING (PID: ${pid})`);
+		} catch {
+			console.log(`CDDS daemon: NOT running (stale PID: ${pid}).`);
+			await Bun.write(PID_FILE, '');
+		}
+	} catch (err: any) {
+		console.error(`Status check failed: ${err.message}`);
+		process.exit(1);
+	}
+} else if (command === 'help' || command === '--help' || command === '-h') {
+	console.log(`
+CDDS - Cloudflare Dynamic DNS Service
+
+Usage:
+  cdds              Open interactive service manager (UI)
+  cdds start        Run daemon in foreground (blocks terminal)
+  cdds daemon       Run daemon in background (detached)
+  cdds stop         Stop background daemon
+  cdds status       Check if background daemon is running
+  cdds help         Show this help message
+`);
 } else {
 	render(<App />);
 }

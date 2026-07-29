@@ -151,3 +151,4 @@ pnpm-lock.yaml
 cdds.service
 pm2.config.js
 cli-manager.log
+cdds.pid
