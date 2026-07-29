@@ -133,7 +133,7 @@ const EnvWizard = ({ onComplete, initialConfig }: { onComplete: (installNow: boo
 					/>
 				) : (
 					<SelectInput
-						items={[{ label: 'True (true)', value: 'true' }, { label: 'False (false)', value: 'false' }]}
+						items={[{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }]}
 						onSelect={(item) => handleNext(item.value)}
 					/>
 				)}
