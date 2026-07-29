@@ -61,13 +61,17 @@ When you run `cdds`, you will be greeted by an interactive menu with the followi
 2. **Edit existing .env Configuration**: Modify your existing setup without manually editing files.
 3. **Manage Service**: Depending on your platform, you'll see options to install `cdds` as a background service via **Built-in Daemon**, **Windows Task Scheduler**, **Systemd**, or **PM2**.
 
-### Manual Mode
-If you prefer not to use the interactive CLI, you can bypass the UI by running:
+### Commands
 
-```sh
-cdds start
-```
-This command runs the updater directly in the foreground, reading the `.env` file from the **current working directory**.
+| Command | Description |
+| ------------- | ---------------------------------------------------------------- |
+| `cdds` | Open interactive UI (configuration wizard + service manager) |
+| `cdds start` | Run the DDNS updater in the **foreground** (blocks terminal) |
+| `cdds daemon` | Run the DDNS updater in the **background** (detached process) |
+| `cdds stop` | Stop the background daemon |
+| `cdds status` | Check if the background daemon is currently running |
+| `cdds help` | Show help message (aliases: `--help`, `-h`) |
+
 
 ## ⚙️ Configuration (.env)
 
