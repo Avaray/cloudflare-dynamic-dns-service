@@ -93,4 +93,4 @@ CDDS_PROXIED=false
 ```
 
 ## 📝 License
-MIT License
+[MIT License](LICENSE)
