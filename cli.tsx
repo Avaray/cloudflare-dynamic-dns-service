@@ -41,7 +41,8 @@ const parseEnv = async (): Promise<CloudflareConfig | null> => {
 			checkIntervalMinutes: parseInt(env.CDDS_CHECK_INTERVAL || '5', 10),
 			logs: env.CDDS_LOGS !== 'false',
 			dryRun: false,
-			ipLogFile: env.CDDS_IP_LOGFILE || 'true'
+			ipLogFile: env.CDDS_IP_LOGFILE || 'true',
+			proxied: env.CDDS_PROXIED === 'true'
 		};
 	} catch (e) {
 		return null;
@@ -58,7 +59,8 @@ const EnvWizard = ({ onComplete, initialConfig }: { onComplete: (installNow: boo
 		ttl: initialConfig?.ttl?.toString() || '60',
 		interval: initialConfig?.checkIntervalMinutes?.toString() || '5',
 		logs: initialConfig?.logs !== false ? 'true' : 'false',
-		ipLogFile: (initialConfig?.ipLogFile || 'true').toString()
+		ipLogFile: (initialConfig?.ipLogFile || 'true').toString(),
+		proxied: initialConfig?.proxied ? 'true' : 'false'
 	});
 
 	const steps = [
@@ -69,7 +71,8 @@ const EnvWizard = ({ onComplete, initialConfig }: { onComplete: (installNow: boo
 		{ key: 'ttl', label: 'TTL in seconds (default 60):', type: 'text' },
 		{ key: 'interval', label: 'Check interval in minutes (default 5):', type: 'text' },
 		{ key: 'logs', label: 'Enable console logs?', type: 'bool' },
-		{ key: 'ipLogFile', label: 'Enable IP log file?', type: 'bool' }
+		{ key: 'ipLogFile', label: 'Enable IP log file?', type: 'bool' },
+		{ key: 'proxied', label: 'Enable Cloudflare Proxy (Orange Cloud)?', type: 'bool' }
 	];
 
 	const currentStep = steps[step];
@@ -92,6 +95,7 @@ const EnvWizard = ({ onComplete, initialConfig }: { onComplete: (installNow: boo
 			envContent += `CDDS_CHECK_INTERVAL=${newConfig.interval || '5'}\n`;
 			envContent += `CDDS_LOGS=${newConfig.logs}\n`;
 			envContent += `CDDS_IP_LOGFILE=${newConfig.ipLogFile}\n`;
+			envContent += `CDDS_PROXIED=${newConfig.proxied}\n`;
 
 			await Bun.write(process.cwd() + '/.env', envContent);
 			logMessage("Generated .env file via Wizard.");

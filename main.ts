@@ -9,6 +9,7 @@ interface CloudflareConfig {
   email: string;
   ipLogFile?: string | boolean;
   logs: boolean;
+  proxied?: boolean;
   recordId?: string;
   targets: string[];
   ttl: number;
@@ -421,7 +422,7 @@ class CloudflareDDNS {
         name: target,
         content: newIP,
         ttl: this.config.ttl,
-        proxied: false, // Set to true if you want Cloudflare proxy
+        proxied: this.config.proxied ?? false,
       };
 
       const headers: Record<string, string> = {
@@ -522,7 +523,7 @@ class CloudflareDDNS {
         name: target,
         content: newIP,
         ttl: this.config.ttl,
-        proxied: false, // Set to true if you want Cloudflare proxy
+        proxied: this.config.proxied ?? false,
       };
 
       const headers: Record<string, string> = {

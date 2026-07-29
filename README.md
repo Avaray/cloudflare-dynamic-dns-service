@@ -63,6 +63,7 @@ bun run cli.tsx
 | **CDDS_CHECK_INTERVAL** | Check interval in minutes (default 5).                                                                                                      |
 | **CDDS_LOGS**           | Enable logging to console (`true` or `false`, default `true`).                                                                              |
 | **CDDS_IP_LOGFILE**     | Enable IP logging. If `true`, new IP will be logged to `cdds.log` file in the current directory. You can specify path to directory or file. |
+| **CDDS_PROXIED**        | Enable Cloudflare proxy (orange cloud) for the DNS record (`true` or `false`, default `false`).                                             |
 
 ### Example configuration
 
@@ -75,6 +76,7 @@ CDDS_TTL=60
 CDDS_CHECK_INTERVAL=1
 CDDS_LOGS=true
 CDDS_IP_LOGFILE=true
+CDDS_PROXIED=false
 ```
 
 ## Things to implement
