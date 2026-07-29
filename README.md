@@ -1,96 +1,88 @@
 # **CDDS** ![](https://api.iconify.design/logos:cloudflare-icon.svg) Cloudflare Dynamic DNS Service
 
-**WARNING** - This script is still in development.
+A lightweight, powerful, and interactive Dynamic DNS (DDNS) client for Cloudflare, built entirely in [Bun](https://bun.sh).
 
-Created for [Cloudflare](https://cloudflare.com) users who want to use their own
-[subdomains](https://en.wikipedia.org/wiki/Subdomain) (or
-[domains](https://en.wikipedia.org/wiki/Domain_name)) for dynamic DNS.
+If your Internet Service Provider (ISP) frequently changes your dynamic IP address, and you want to host services on your home network under a static domain name, **CDDS** is the perfect tool for you. It runs efficiently in the background, checks your public IP address, and automatically updates your Cloudflare DNS records whenever your IP changes.
 
-It is slightly more complex alternative to services like
-[No-IP](http://www.noip.com/), [Dynu](http://www.dynu.com/),
-[CouDNS](https://www.cloudns.net/), etc. It will be useful when you don't have a
-static IP address (when your
-[ISP](https://en.wikipedia.org/wiki/Internet_service_provider) changes it
-frequently), and you would like to always connect to the same address. It will
-monitor your external IP address and update your Cloudflare DNS records
-automatically.
+## 🚀 Features
 
-## Requirements
+- **Interactive CLI Setup Wizard:** Zero manual `.env` file editing. Just type `cdds` and follow the beautiful terminal UI to configure everything.
+- **Service Manager Integrations:** Built-in tools to easily install, pause, or remove the DDNS background service depending on your operating system:
+  - **Native Daemon Mode:** Run detached directly via Bun (no external tools required).
+  - **Windows Task Scheduler:** Auto-installs and runs on system boot (Windows).
+  - **Systemd Service:** Native Linux background service integration.
+  - **PM2:** Node.js ecosystem process manager integration.
+- **Smart DNS Management:**
+  - Auto-discovers Cloudflare Zone IDs.
+  - Auto-detects your API credential type (Global Key vs Scoped Token).
+  - Multi-target support (update multiple subdomains at once).
+  - Full support for Cloudflare's **Proxied (Orange Cloud)** status.
 
-- [Bun](https://bun.com/docs/installation) as your JavaScript runtime.
-- [Cloudflare account](https://dash.cloudflare.com/sign-up) with
-  [added website](https://developers.cloudflare.com/fundamentals/setup/account-setup/add-site/)
-  and
-  [API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/)
-  or
-  [Global API key](https://developers.cloudflare.com/fundamentals/api/get-started/keys/).
-- Process manager (like [PM2](https://pm2.keymetrics.io/) or
-  [systemd.service](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html))
-  if you want to run it for a long time.
+## 📋 Requirements
 
-## Installation
+- [Bun](https://bun.sh/) installed on your machine (`curl -fsSL https://bun.sh/install | bash`).
+- A [Cloudflare account](https://dash.cloudflare.com/sign-up) with a domain added.
+- A Cloudflare [API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) (recommended) or a Global API key.
 
-### Global Installation (Recommended)
+## 📦 Installation
 
-Once published to NPM, you can install the package globally using Bun:
+To get started, install the package globally using Bun:
 
 ```sh
 bun install -g cloudflare-dynamic-dns-service
 ```
 
-This will give you access to the interactive `cdds` CLI tool globally.
+*(Note: If you clone the repository for local development, use `bun install` followed by `bun link` instead).*
 
-### Local Development / Testing
+## 🛠️ Usage
 
-If you cloned the repository and want to test it locally, use `bun link` instead of global install to avoid dependency loop errors:
-
-```sh
-bun install
-bun link
-```
-
-After installation, simply type `cdds` in your terminal to open the interactive setup wizard and service manager.
-
-If a configuration (`.env`) already exists in your current directory, running `cdds` will allow you to edit your existing configuration instead of starting from scratch.
-
-You can also bypass the UI and directly start the daemon by running `cdds start`.
-
-### Local Installation
+After installation, simply run the interactive CLI in your terminal:
 
 ```sh
-bun install
-bun run cli.tsx
+cdds
 ```
 
-## Configuration
+### CLI Menu Options
+When you run `cdds`, you will be greeted by an interactive menu with the following features:
+1. **Run .env Configuration Wizard**: A step-by-step wizard to input your Cloudflare credentials, target subdomains, proxy status, and check interval.
+2. **Edit existing .env Configuration**: Modify your existing setup without manually editing files.
+3. **Manage Service**: Depending on your platform, you'll see options to install `cdds` as a background service via **Built-in Daemon**, **Windows Task Scheduler**, **Systemd**, or **PM2**.
+
+### Manual Mode
+If you prefer not to use the interactive CLI or want to run the script inside a Docker container, you can bypass the UI by running:
+
+```sh
+cdds start
+```
+This command runs the updater directly in the foreground, using the `.env` file present in the current working directory.
+
+## ⚙️ Configuration (.env)
+
+The `cdds` CLI wizard generates a `.env` file for you automatically. However, if you prefer to manage it manually (e.g., for Docker), here is the reference:
 
 | Environment Variable    | Description                                                                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | **CDDS_API_KEY**        | Cloudflare API key or token (Auto-detected based on length/format).                                                                         |
-| **CDDS_EMAIL**          | Cloudflare account email address (only required if using API key).                                                                          |
-| **CDDS_TARGETS**        | Domains or subdomains to update (comma separated).                                                                                          |
-| **CDDS_ZONE_ID**        | Cloudflare zone ID where domains will be added/updated. If empty, it will be auto-discovered based on domain.                               |
-| **CDDS_TTL**            | Cloudflare DNS record TTL in seconds (default `300`, minimum `60`).                                                                         |
-| **CDDS_CHECK_INTERVAL** | Check interval in minutes (default 5).                                                                                                      |
+| **CDDS_EMAIL**          | Cloudflare account email address (only required if using Global API key).                                                                   |
+| **CDDS_TARGETS**        | Domains or subdomains to update (comma separated, e.g., `web.example.com,api.example.com`).                                                 |
+| **CDDS_ZONE_ID**        | Cloudflare zone ID where domains will be added/updated. If empty, it will be auto-discovered based on the target domain.                    |
+| **CDDS_TTL**            | Cloudflare DNS record TTL in seconds (default `60`).                                                                                        |
+| **CDDS_CHECK_INTERVAL** | Check interval in minutes (default `5`).                                                                                                    |
 | **CDDS_LOGS**           | Enable logging to console (`true` or `false`, default `true`).                                                                              |
-| **CDDS_IP_LOGFILE**     | Enable IP logging. If `true`, new IP will be logged to `cdds.log` file in the current directory. You can specify path to directory or file. |
+| **CDDS_IP_LOGFILE**     | Enable IP logging. If `true`, IP changes will be logged to the `cdds.log` file.                                                             |
 | **CDDS_PROXIED**        | Enable Cloudflare proxy (orange cloud) for the DNS record (`true` or `false`, default `false`).                                             |
 
-### Example configuration
+### Example `.env` file:
 
-```sh
-CDDS_API_KEY=ada33c3hub7e14b593e180uuu734331131d65
-CDDS_EMAIL=johndoe@example.com
-CDDS_TARGETS=web.example.com,server.example.com
-CDDS_ZONE_ID=802e9018cb3c1e9cb12360ec8442981d
+```env
+CDDS_API_KEY=YOUR_CLOUDFLARE_API_TOKEN
+CDDS_TARGETS=home.yourdomain.com
 CDDS_TTL=60
-CDDS_CHECK_INTERVAL=1
+CDDS_CHECK_INTERVAL=5
 CDDS_LOGS=true
 CDDS_IP_LOGFILE=true
 CDDS_PROXIED=false
 ```
 
-## Things to implement
-
-- CLI with prompts for initial configuration (creating .env file).
-- Publication to NPM.
+## 📝 License
+MIT License
