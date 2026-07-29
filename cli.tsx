@@ -6,11 +6,11 @@ import TextInput from 'ink-text-input';
 import process from 'process';
 import { execSync } from 'child_process';
 import { appendFileSync } from 'fs';
+import datr from 'datr';
 import { startDaemon, validateConfig, type CloudflareConfig, detectApiKeyType } from './main.ts';
 
 const logMessage = (msg: string) => {
-	const timestamp = new Date().toISOString();
-	const line = `[${timestamp}] ${msg}\n`;
+	const line = `[${datr({ precision: 'ms', separator: '-' })}] ${msg}\n`;
 	try {
 		appendFileSync(process.cwd() + '/cli-manager.log', line);
 	} catch (e) {}

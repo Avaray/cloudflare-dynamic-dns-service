@@ -1,5 +1,5 @@
 import gip from "gip";
-import process from "node:process";
+import datr from "datr";
 
 interface CloudflareConfig {
   apiKey: string;
@@ -93,13 +93,7 @@ class CloudflareDDNS {
     if (!this.ipLogPath) return;
 
     try {
-      const now = new Date();
-      const timeString = now.toLocaleTimeString("en-US", {
-        hour12: false,
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      });
+      const timeString = datr({ precision: 'ms', separator: '-' });
       const logEntry = `${timeString} > ${newIP}\n`;
 
       const file = Bun.file(this.ipLogPath);
@@ -748,7 +742,7 @@ class CloudflareDDNS {
     setInterval(async () => {
       if (this.config.logs) {
         console.log("─".repeat(50));
-        console.log(`${new Date().toLocaleString()} - Running scheduled check`);
+        console.log(`${datr({ precision: 'ms', separator: '-' })} - Running scheduled check`);
       }
       await this.performUpdate();
     }, intervalMinutes * 60 * 1000);
