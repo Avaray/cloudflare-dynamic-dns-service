@@ -144,6 +144,7 @@ class CloudflareDDNS {
   private async getCurrentIP(): Promise<string> {
     try {
       const ip = await gip({
+        verbose: false,
         ensure: 3,
         type: this.config.ipType || "ipv4"
       });
