@@ -532,10 +532,11 @@ class CloudflareDDNS {
   private async updateDNSRecord(
     target: string,
     newIP: string,
+    existingRecord?: DNSRecord,
   ): Promise<boolean> {
     try {
-      // Always get the current record to ensure we have the correct ID
-      const record = await this.getDNSRecord(target);
+      // Use the already-fetched record if provided, otherwise fetch it
+      const record = existingRecord ?? await this.getDNSRecord(target);
       if (!record) {
         if (this.config.logs) {
           console.log(
@@ -701,17 +702,13 @@ class CloudflareDDNS {
         console.log(`Updating DNS record for ${target}...`);
       }
 
-      // Update DNS record
-      const updateSuccess = await this.updateDNSRecord(target, this.currentIP);
+      // Update DNS record, passing the already-fetched record to avoid redundant API call
+      const updateSuccess = await this.updateDNSRecord(target, this.currentIP, dnsRecord);
       if (!updateSuccess) {
         if (this.config.logs) {
           console.error(`Failed to update DNS record for ${target}`);
         }
-        return;
       }
-
-      // Verify update
-      await this.verifyDNSUpdate(target, this.currentIP);
     } catch (error) {
       if (this.config.logs) {
         console.error(
