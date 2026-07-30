@@ -53,6 +53,7 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 		};
 
 		const onKeyPress = (str: string, key: any) => {
+			if (!key) return;
 			if (key.name === 'up') {
 				selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : items.length - 1;
 				renderMenu();
@@ -71,11 +72,13 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 		const cleanup = () => {
 			if (process.stdin.isTTY) process.stdin.setRawMode(false);
 			process.stdin.removeListener('keypress', onKeyPress);
+			process.stdin.pause();
 			if (rl) rl.close();
 		};
 
 		if (process.stdin.isTTY) {
 			process.stdin.setRawMode(true);
+			process.stdin.resume();
 			readline.emitKeypressEvents(process.stdin);
 			process.stdin.on('keypress', onKeyPress);
 		} else {
