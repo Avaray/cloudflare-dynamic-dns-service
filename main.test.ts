@@ -87,4 +87,45 @@ describe("Cloudflare DDNS Utils", () => {
       "Please set your target domain(s)"
     );
   });
+
+  test("validateConfig passes with valid ipType", () => {
+    const validConfigIpv4: CloudflareConfig = {
+      apiKey: "some_valid_token",
+      apiKeyType: "token",
+      email: "valid@example.com",
+      targets: ["test.example.com"],
+      ttl: 300,
+      zoneId: "",
+      logs: false,
+      dryRun: false,
+      checkIntervalMinutes: 5,
+      ipType: "ipv4"
+    };
+    expect(() => validateConfig(validConfigIpv4)).not.toThrow();
+
+    const validConfigIpv6: CloudflareConfig = {
+      ...validConfigIpv4,
+      ipType: "ipv6"
+    };
+    expect(() => validateConfig(validConfigIpv6)).not.toThrow();
+  });
+
+  test("validateConfig fails with invalid ipType", () => {
+    const invalidConfig = {
+      apiKey: "some_valid_token",
+      apiKeyType: "token",
+      email: "valid@example.com",
+      targets: ["test.example.com"],
+      ttl: 300,
+      zoneId: "",
+      logs: false,
+      dryRun: false,
+      checkIntervalMinutes: 5,
+      ipType: "invalid_type" // ts-ignore would be needed, but we cast to any for runtime test
+    } as any;
+    
+    expect(() => validateConfig(invalidConfig)).toThrow(
+      "IP Type must be either 'ipv4' or 'ipv6'"
+    );
+  });
 });
