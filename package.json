@@ -32,14 +32,18 @@
     "typescript": "^7.0.2"
   },
   "keywords": [
+    "address",
     "cli",
     "cloudflare",
     "ddns",
     "dns",
+    "domain",
     "dynamic-dns",
     "ipv4",
+    "ipv6",
     "no-ip",
     "noip",
+    "service",
     "tool"
   ],
   "repository": {
