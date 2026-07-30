@@ -1,7 +1,7 @@
 {
   "name": "cloudflare-dynamic-dns-service",
   "version": "1.0.0",
-  "description": "Cloudflare Dynamic DNS Service for Bun",
+  "description": "Cloudflare Dynamic DNS Service",
   "type": "module",
   "main": "dist/main.js",
   "files": [
