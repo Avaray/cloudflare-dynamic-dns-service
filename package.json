@@ -11,7 +11,8 @@
     "start": "node dist/main.js",
     "cli": "node dist/cli.js",
     "build": "tsup cli.tsx main.ts --format esm --clean",
-    "test": "bun test"
+    "test": "bun test",
+    "prepack": "bun run build"
   },
   "bin": {
     "cdds": "./dist/cli.js"
