@@ -846,6 +846,7 @@ const config: CloudflareConfig = {
   ipLogFile: getIPLogFileConfig(),
   ipType: (process.env.CDDS_IP_TYPE?.toLowerCase() === "ipv6" ? "ipv6" : "ipv4"),
   logs: process.env.CDDS_LOGS?.toLowerCase() === "true",
+  proxied: process.env.CDDS_PROXIED?.toLowerCase() === "true",
   targets: getTargets(),
   ttl: parseInt(process.env.CDDS_TTL ?? "60"),
   zoneId: process.env.CDDS_ZONE_ID ?? "",
