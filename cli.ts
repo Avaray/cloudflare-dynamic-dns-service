@@ -1,0 +1,647 @@
+#!/usr/bin/env node
+import process from 'process';
+import { execSync, spawn } from 'child_process';
+import { promises as fsPromises } from 'node:fs';
+import { appendFileSync } from 'fs';
+import * as readline from 'readline';
+
+import datr from 'datr';
+import { startDaemon, validateConfig, type CloudflareConfig, detectApiKeyType } from './main.ts';
+
+const isWindows = process.platform === 'win32';
+const PID_FILE = process.cwd() + '/cdds.pid';
+
+const fileExists = async (path: string) => { try { await fsPromises.access(path); return true; } catch { return false; } };
+
+const logMessage = (msg: string) => {
+	const line = `[${datr({ precision: 'ms', separator: '-' })}] ${msg}\n`;
+	try { appendFileSync(process.cwd() + '/cli-manager.log', line); } catch (e) {}
+};
+
+// Console UI Helpers (Zero Dependencies)
+const clearScreen = () => {
+	process.stdout.write('\x1Bc');
+};
+
+const textPrompt = (question: string, defaultValue: string = ''): Promise<string> => {
+	return new Promise((resolve) => {
+		const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+		rl.question(`${question} ${defaultValue ? `(${defaultValue}) ` : ''}`, (answer) => {
+			rl.close();
+			resolve(answer.trim() || defaultValue);
+		});
+	});
+};
+
+type SelectItem = { label: string; value: string };
+const selectPrompt = (question: string, items: SelectItem[], defaultIndex: number = 0): Promise<string> => {
+	return new Promise((resolve) => {
+		let selectedIndex = defaultIndex;
+		let rl: readline.Interface | null = null;
+		
+		const renderMenu = () => {
+			process.stdout.write('\x1B[2J\x1B[0;0H'); // Clear and move to top
+			console.log(`\x1b[36m\x1b[1m${question}\x1b[0m\n`);
+			items.forEach((item, index) => {
+				if (index === selectedIndex) {
+					console.log(`\x1b[32m❯ ${item.label}\x1b[0m`);
+				} else {
+					console.log(`  ${item.label}`);
+				}
+			});
+			console.log('\n(Use ↑/↓ arrows to navigate, Enter to select)');
+		};
+
+		const onKeyPress = (str: string, key: any) => {
+			if (key.name === 'up') {
+				selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : items.length - 1;
+				renderMenu();
+			} else if (key.name === 'down') {
+				selectedIndex = selectedIndex < items.length - 1 ? selectedIndex + 1 : 0;
+				renderMenu();
+			} else if (key.name === 'return' || key.name === 'enter') {
+				cleanup();
+				resolve(items[selectedIndex].value);
+			} else if (key.ctrl && key.name === 'c') {
+				cleanup();
+				process.exit(0);
+			}
+		};
+
+		const cleanup = () => {
+			if (process.stdin.isTTY) process.stdin.setRawMode(false);
+			process.stdin.removeListener('keypress', onKeyPress);
+			if (rl) rl.close();
+		};
+
+		if (process.stdin.isTTY) {
+			process.stdin.setRawMode(true);
+			readline.emitKeypressEvents(process.stdin);
+			process.stdin.on('keypress', onKeyPress);
+		} else {
+			// Fallback if not TTY
+			rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+			console.log(question);
+			items.forEach((item, i) => console.log(`${i + 1}. ${item.label}`));
+			rl.question('Select option number: ', (answer) => {
+				const idx = parseInt(answer, 10) - 1;
+				cleanup();
+				resolve(items[idx] ? items[idx].value : items[0].value);
+			});
+			return;
+		}
+
+		renderMenu();
+	});
+};
+
+const pausePrompt = async () => {
+	const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+	return new Promise<void>((resolve) => {
+		rl.question('\nPress Enter to continue...', () => {
+			rl.close();
+			resolve();
+		});
+	});
+};
+
+// ... parsing logic
+const parseEnv = async (): Promise<CloudflareConfig | null> => {
+	try {
+		const envPath = process.cwd() + '/.env';
+		if (!(await fileExists(envPath))) return null;
+		const text = await fsPromises.readFile(envPath, 'utf8');
+		const lines = text.split('\n');
+		const env: Record<string, string> = {};
+		for (const line of lines) {
+			const [key, ...rest] = line.split('=');
+			if (key && rest.length > 0) {
+				env[key.trim()] = rest.join('=').trim();
+			}
+		}
+		
+		const apiKey = env.CDDS_API_KEY || '';
+		return {
+			apiKey,
+			apiKeyType: apiKey ? detectApiKeyType(apiKey) : 'token',
+			email: env.CDDS_EMAIL || '',
+			targets: env.CDDS_TARGETS ? env.CDDS_TARGETS.split(',').map(t => t.trim()) : [],
+			zoneId: env.CDDS_ZONE_ID || '',
+			ttl: parseInt(env.CDDS_TTL || '60', 10),
+			checkIntervalMinutes: parseInt(env.CDDS_CHECK_INTERVAL || '5', 10),
+			logs: env.CDDS_LOGS !== 'false',
+			dryRun: false,
+			ipLogFile: env.CDDS_IP_LOGFILE || 'true',
+			ipType: env.CDDS_IP_TYPE?.toLowerCase() === 'ipv6' ? 'ipv6' : 'ipv4',
+			proxied: env.CDDS_PROXIED === 'true'
+		};
+	} catch (e) {
+		return null;
+	}
+};
+
+// --- WIZARD ---
+const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
+	let apiKey = initialConfig?.apiKey || '';
+	let email = initialConfig?.email || '';
+	let targets = initialConfig?.targets.join(', ') || '';
+	let zoneId = initialConfig?.zoneId || '';
+	let ttl = initialConfig?.ttl?.toString() || '60';
+	let interval = initialConfig?.checkIntervalMinutes?.toString() || '5';
+	let ipType = initialConfig?.ipType || 'ipv4';
+	let logs = initialConfig?.logs !== false ? 'true' : 'false';
+	let ipLogFile = (initialConfig?.ipLogFile || 'true').toString();
+	let proxied = initialConfig?.proxied ? 'true' : 'false';
+
+	clearScreen();
+	console.log('\x1b[36m\x1b[1m--- .ENV CONFIGURATION WIZARD ---\x1b[0m\n');
+	
+	apiKey = await textPrompt('Cloudflare API Key / Token:', apiKey);
+	email = await textPrompt('Cloudflare Email (Leave empty if using Token):', email);
+	targets = await textPrompt('Targets (comma separated, e.g. sub.domain.com):', targets);
+	zoneId = await textPrompt('Zone ID (Optional, leave empty for auto-discover):', zoneId);
+	ttl = await textPrompt('TTL in seconds:', ttl);
+	interval = await textPrompt('Check interval in minutes:', interval);
+	ipType = await selectPrompt('IP Type to update:', [
+		{ label: 'IPv4 (A)', value: 'ipv4' },
+		{ label: 'IPv6 (AAAA)', value: 'ipv6' }
+	], ipType === 'ipv6' ? 1 : 0);
+	logs = await selectPrompt('Enable console logs?', [
+		{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+	], logs === 'false' ? 1 : 0);
+	ipLogFile = await selectPrompt('Enable IP log file?', [
+		{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+	], ipLogFile === 'false' ? 1 : 0);
+	proxied = await selectPrompt('Enable Cloudflare Proxy (Orange Cloud)?', [
+		{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+	], proxied === 'false' ? 1 : 0);
+
+	let envContent = `CDDS_API_KEY=${apiKey}\n`;
+	if (email) envContent += `CDDS_EMAIL=${email}\n`;
+	envContent += `CDDS_TARGETS=${targets}\n`;
+	if (zoneId) envContent += `CDDS_ZONE_ID=${zoneId}\n`;
+	envContent += `CDDS_TTL=${ttl}\n`;
+	envContent += `CDDS_CHECK_INTERVAL=${interval}\n`;
+	envContent += `CDDS_IP_TYPE=${ipType}\n`;
+	envContent += `CDDS_LOGS=${logs}\n`;
+	envContent += `CDDS_IP_LOGFILE=${ipLogFile}\n`;
+	envContent += `CDDS_PROXIED=${proxied}\n`;
+
+	await fsPromises.writeFile(process.cwd() + '/.env', envContent, "utf8");
+	logMessage("Generated .env file via Wizard.");
+	
+	const action = await selectPrompt('Saved .env successfully! What do you want to do now?', [
+		{ label: 'Install as a service', value: 'install' },
+		{ label: 'Run temporarily (built-in daemon)', value: 'daemon' },
+		{ label: 'Return to main menu', value: 'menu' }
+	]);
+	
+	if (action === 'install') return 'install_prompt';
+	if (action === 'daemon') return 'daemon';
+	return 'menu';
+};
+
+// --- SERVICE MANAGERS ---
+const isPM2Available = (): boolean => {
+	try { execSync(isWindows ? 'where pm2' : 'which pm2', { stdio: 'ignore' }); return true; } catch { return false; }
+};
+
+const isSystemdAvailable = (): boolean => {
+	if (isWindows) return false;
+	try { execSync('systemctl --version', { stdio: 'ignore' }); return true; } catch { return false; }
+};
+
+const isWindowsAdmin = (): boolean => {
+	if (!isWindows) return false;
+	try { execSync('net session', { stdio: 'ignore' }); return true; } catch { return false; }
+};
+
+const TASK_NAME = 'CDDS-DynamicDNS';
+
+const runSystemdManager = async () => {
+	const isRoot = process.getuid ? process.getuid() === 0 : false;
+	
+	while (true) {
+		const action = await selectPrompt('--- SYSTEMD MANAGER ---', [
+			{ label: 'Install / Start Service', value: 'install' },
+			{ label: 'Stop (Pause) Service', value: 'pause' },
+			{ label: 'Uninstall / Remove Service', value: 'remove' },
+			{ label: 'Go Back', value: 'back' }
+		]);
+
+		if (action === 'back') break;
+
+		if (!isRoot) {
+			console.log('\x1b[31mERROR: Root privileges required! Please run CLI with sudo.\x1b[0m');
+			await pausePrompt();
+			continue;
+		}
+
+		try {
+			const cfg = await parseEnv();
+			if (!cfg) throw new Error("No .env file found. Please run the configuration wizard first.");
+			validateConfig(cfg);
+
+			if (action === 'install') {
+				const projectPath = process.cwd();
+				const bunPath = process.execPath;
+				const serviceContent = `[Unit]
+Description=Cloudflare Dynamic DNS Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=${projectPath}
+ExecStart=${bunPath} run cdds start
+Restart=on-failure
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=cdds
+
+[Install]
+WantedBy=multi-user.target
+`;
+				await fsPromises.writeFile('/etc/systemd/system/cdds.service', serviceContent, "utf8");
+				execSync('systemctl daemon-reload');
+				execSync('systemctl enable cdds');
+				execSync('systemctl start cdds');
+				console.log('\x1b[32mSUCCESS: Systemd Service installed and started successfully!\x1b[0m');
+				logMessage('Systemd: Installed and started cdds.service');
+			} else if (action === 'pause') {
+				execSync('systemctl stop cdds');
+				console.log('\x1b[32mSUCCESS: Systemd Service stopped (paused).\x1b[0m');
+				logMessage('Systemd: Stopped cdds.service');
+			} else if (action === 'remove') {
+				try { execSync('systemctl stop cdds'); } catch (e) {}
+				try { execSync('systemctl disable cdds'); } catch (e) {}
+				try {
+					const stat = await fsPromises.stat('/etc/systemd/system/cdds.service');
+					if (stat.size > 0) execSync('rm /etc/systemd/system/cdds.service');
+				} catch {}
+				execSync('systemctl daemon-reload');
+				console.log('\x1b[32mSUCCESS: Systemd Service completely removed.\x1b[0m');
+				logMessage('Systemd: Removed cdds.service');
+			}
+		} catch (e: any) {
+			console.log(`\x1b[31mERROR: ${e.message}\x1b[0m`);
+		}
+		await pausePrompt();
+	}
+};
+
+const runPM2Manager = async () => {
+	while (true) {
+		const action = await selectPrompt('--- PM2 MANAGER ---', [
+			{ label: 'Install / Start Service', value: 'install' },
+			{ label: 'Stop (Pause) Service', value: 'pause' },
+			{ label: 'Uninstall / Remove Service', value: 'remove' },
+			{ label: 'Go Back', value: 'back' }
+		]);
+
+		if (action === 'back') break;
+
+		try {
+			const cfg = await parseEnv();
+			if (!cfg) throw new Error("No .env file found. Please run the configuration wizard first.");
+			validateConfig(cfg);
+
+			if (action === 'install') {
+				const pm2Content = `module.exports = {
+  apps: [
+    {
+      name: "cloudflare-ddns",
+      script: "cdds",
+      args: "start",
+      interpreter: "none",
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "100M",
+      env: {
+        NODE_ENV: "production",
+      },
+    },
+  ],
+};
+`;
+				await fsPromises.writeFile(process.cwd() + '/pm2.config.js', pm2Content, "utf8");
+				execSync('pm2 start pm2.config.js');
+				execSync('pm2 save');
+				console.log('\x1b[32mSUCCESS: PM2 Service installed and started successfully!\x1b[0m');
+				logMessage('PM2: Installed and started cloudflare-ddns');
+			} else if (action === 'pause') {
+				execSync('pm2 stop cloudflare-ddns');
+				console.log('\x1b[32mSUCCESS: PM2 Service stopped (paused).\x1b[0m');
+				logMessage('PM2: Stopped cloudflare-ddns');
+			} else if (action === 'remove') {
+				execSync('pm2 delete cloudflare-ddns');
+				execSync('pm2 save');
+				console.log('\x1b[32mSUCCESS: PM2 Service completely removed.\x1b[0m');
+				logMessage('PM2: Removed cloudflare-ddns');
+			}
+		} catch (e: any) {
+			console.log(`\x1b[31mERROR: ${e.message}\x1b[0m`);
+		}
+		await pausePrompt();
+	}
+};
+
+const runTaskSchedulerManager = async () => {
+	while (true) {
+		let taskStatus = 'Unknown';
+		try {
+			const out = execSync(`schtasks /query /tn "${TASK_NAME}" /fo LIST`, { encoding: 'utf8' });
+			const statusMatch = out.match(/Status:\s+(.+)/i);
+			taskStatus = statusMatch ? statusMatch[1].trim() : 'Unknown';
+		} catch {
+			taskStatus = 'Not Installed';
+		}
+		
+		const notInstalled = taskStatus === 'Not Installed';
+		const items = [
+			...(notInstalled ? [{ label: 'Install / Enable at Boot', value: 'install' }] : []),
+			...(!notInstalled ? [{ label: 'Stop & Disable', value: 'pause' }] : []),
+			...(!notInstalled ? [{ label: 'Enable & Run Now', value: 'resume' }] : []),
+			...(!notInstalled ? [{ label: 'Uninstall / Remove', value: 'remove' }] : []),
+			{ label: 'Refresh Status', value: 'refresh' },
+			{ label: 'Go Back', value: 'back' },
+		];
+
+		const action = await selectPrompt(`--- WINDOWS TASK SCHEDULER ---\nTask Status: ${taskStatus === 'Not Installed' ? '\x1b[31m' : '\x1b[32m'}${taskStatus}\x1b[0m`, items);
+
+		if (action === 'back') break;
+		if (action === 'refresh') continue;
+
+		if (!isWindowsAdmin()) {
+			console.log('\x1b[31mERROR: Administrator privileges required! Please run CLI as Administrator.\x1b[0m');
+			await pausePrompt();
+			continue;
+		}
+
+		try {
+			const cfg = await parseEnv();
+			if (!cfg) throw new Error('No .env file found. Please run the configuration wizard first.');
+			validateConfig(cfg);
+
+			if (action === 'install') {
+				const bunExec = process.execPath;
+				const scriptPath = import.meta.url ? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') : process.argv[1];
+				execSync(`schtasks /create /tn "${TASK_NAME}" /tr "\"${bunExec}\" \"${scriptPath}\" start" /sc ONSTART /ru SYSTEM /f`);
+				execSync(`schtasks /run /tn "${TASK_NAME}"`);
+				console.log('\x1b[32mSUCCESS: Task installed and started successfully!\x1b[0m');
+				logMessage('TaskScheduler: Installed CDDS-DynamicDNS task');
+			} else if (action === 'pause') {
+				try { execSync(`schtasks /end /tn "${TASK_NAME}"`); } catch { }
+				execSync(`schtasks /change /tn "${TASK_NAME}" /disable`);
+				console.log('\x1b[32mSUCCESS: Task stopped and disabled.\x1b[0m');
+				logMessage('TaskScheduler: Stopped CDDS-DynamicDNS task');
+			} else if (action === 'resume') {
+				execSync(`schtasks /change /tn "${TASK_NAME}" /enable`);
+				execSync(`schtasks /run /tn "${TASK_NAME}"`);
+				console.log('\x1b[32mSUCCESS: Task re-enabled and running.\x1b[0m');
+				logMessage('TaskScheduler: Resumed CDDS-DynamicDNS task');
+			} else if (action === 'remove') {
+				try { execSync(`schtasks /end /tn "${TASK_NAME}"`); } catch { }
+				execSync(`schtasks /delete /tn "${TASK_NAME}" /f`);
+				console.log('\x1b[32mSUCCESS: Task completely removed.\x1b[0m');
+				logMessage('TaskScheduler: Removed CDDS-DynamicDNS task');
+			}
+		} catch (e: any) {
+			console.log(`\x1b[31mERROR: ${e.message}\x1b[0m`);
+		}
+		await pausePrompt();
+	}
+};
+
+const runDaemonManager = async () => {
+	while (true) {
+		let running = false;
+		let pid: number | null = null;
+		
+		try {
+			if (await fileExists(PID_FILE)) {
+				const stored = parseInt(await fsPromises.readFile(PID_FILE, 'utf8'), 10);
+				if (stored && !isNaN(stored)) {
+					try {
+						process.kill(stored, 0);
+						pid = stored;
+						running = true;
+					} catch {
+						await fsPromises.writeFile(PID_FILE, '', "utf8");
+					}
+				}
+			}
+		} catch {}
+
+		const statusLabel = running ? `\x1b[32mRunning (PID: ${pid})\x1b[0m` : '\x1b[31mStopped\x1b[0m';
+		
+		const items = [
+			...(running ? [] : [{ label: 'Start Daemon (background)', value: 'start' }]),
+			...(running ? [{ label: 'Stop Daemon', value: 'stop' }] : []),
+			{ label: 'Refresh Status', value: 'refresh' },
+			{ label: 'Go Back', value: 'back' },
+		];
+
+		const action = await selectPrompt(`--- DAEMON MANAGER ---\nStatus: ${statusLabel}`, items);
+
+		if (action === 'back') break;
+		if (action === 'refresh') continue;
+
+		try {
+			if (action === 'start') {
+				const cfg = await parseEnv();
+				if (!cfg) throw new Error('No .env file found. Run the configuration wizard first.');
+				validateConfig(cfg);
+
+				const bunExec = process.execPath;
+				const scriptPath = import.meta.url ? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') : process.argv[1];
+				const child = spawn(bunExec, [scriptPath, 'start'], {
+					detached: true,
+					stdio: ['ignore', 'ignore', 'ignore'],
+					env: { ...process.env },
+				});
+				await fsPromises.writeFile(PID_FILE, child.pid?.toString() || '', "utf8");
+				child.unref();
+				logMessage(`Daemon: Started (PID: ${child.pid})`);
+				console.log(`\x1b[32mSUCCESS: Daemon started! (PID: ${child.pid})\x1b[0m`);
+			} else if (action === 'stop') {
+				if (!running || !pid) throw new Error('Daemon is not running.');
+				process.kill(pid, 'SIGTERM');
+				await fsPromises.writeFile(PID_FILE, '', "utf8");
+				logMessage(`Daemon: Stopped (PID: ${pid})`);
+				console.log(`\x1b[32mSUCCESS: Daemon stopped (PID: ${pid}).\x1b[0m`);
+			}
+		} catch (e: any) {
+			if (e.code === 'ESRCH') {
+				await fsPromises.writeFile(PID_FILE, '', "utf8");
+				console.log('\x1b[32mSUCCESS: Daemon was not running (stale PID removed).\x1b[0m');
+			} else {
+				console.log(`\x1b[31mERROR: ${e.message}\x1b[0m`);
+			}
+		}
+		await pausePrompt();
+	}
+};
+
+// --- MAIN CLI ENTRY POINT ---
+const main = async () => {
+	const args = process.argv.slice(2);
+	const command = args[0];
+
+	if (command === 'start') {
+		try {
+			await startDaemon();
+		} catch (err) {
+			console.error(err);
+			process.exit(1);
+		}
+		return;
+	} else if (command === 'daemon') {
+		const existingPid = await (async () => {
+			try {
+				if (await fileExists(PID_FILE)) return parseInt(await fsPromises.readFile(PID_FILE, 'utf8'), 10);
+			} catch { }
+			return null;
+		})();
+
+		if (existingPid) {
+			try {
+				process.kill(existingPid, 0);
+				console.error(`CDDS daemon is already running (PID: ${existingPid}). Use 'cdds stop' first.`);
+				process.exit(1);
+			} catch {
+				await fsPromises.writeFile(PID_FILE, '', "utf8");
+			}
+		}
+
+		const bunExec = process.execPath;
+		const scriptPath = import.meta.url ? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') : process.argv[1];
+
+		const child = spawn(bunExec, [scriptPath, 'start'], {
+			detached: true,
+			stdio: ['ignore', 'ignore', 'ignore'],
+			env: { ...process.env },
+		});
+
+		const pid = child.pid;
+		await fsPromises.writeFile(PID_FILE, pid?.toString() || '', "utf8");
+		child.unref();
+
+		console.log(`CDDS daemon started in background (PID: ${pid})`);
+		console.log(`PID saved to: ${PID_FILE}`);
+		console.log(`Use 'cdds status' to check, 'cdds stop' to stop.`);
+		return;
+	} else if (command === 'stop') {
+		try {
+			if (!(await fileExists(PID_FILE))) {
+				console.error("No PID file found. CDDS daemon does not appear to be running.");
+				process.exit(1);
+			}
+			const pid = parseInt(await fsPromises.readFile(PID_FILE, 'utf8'), 10);
+			if (!pid || isNaN(pid)) {
+				console.error("Invalid PID file. Try removing cdds.pid manually.");
+				process.exit(1);
+			}
+			process.kill(pid, 'SIGTERM');
+			await fsPromises.writeFile(PID_FILE, '', "utf8");
+			console.log(`CDDS daemon stopped (PID: ${pid}).`);
+		} catch (err: any) {
+			if (err.code === 'ESRCH') {
+				console.log("CDDS daemon is not running (stale PID file removed).");
+				await fsPromises.writeFile(PID_FILE, '', "utf8");
+			} else {
+				console.error(`Failed to stop daemon: ${err.message}`);
+				process.exit(1);
+			}
+		}
+		return;
+	} else if (command === 'status') {
+		try {
+			if (!(await fileExists(PID_FILE))) {
+				console.log("CDDS daemon: NOT running (no PID file found).");
+				process.exit(0);
+			}
+			const pid = parseInt(await fsPromises.readFile(PID_FILE, 'utf8'), 10);
+			if (!pid || isNaN(pid)) {
+				console.log("CDDS daemon: NOT running (invalid PID file).");
+				process.exit(0);
+			}
+			try {
+				process.kill(pid, 0);
+				console.log(`CDDS daemon: RUNNING (PID: ${pid})`);
+			} catch {
+				console.log(`CDDS daemon: NOT running (stale PID: ${pid}).`);
+				await fsPromises.writeFile(PID_FILE, '', "utf8");
+			}
+		} catch (err: any) {
+			console.error(`Status check failed: ${err.message}`);
+			process.exit(1);
+		}
+		return;
+	} else if (command === 'help' || command === '--help' || command === '-h') {
+		console.log(`
+CDDS - Cloudflare Dynamic DNS Service
+
+Usage:
+  cdds              Open interactive service manager (UI)
+  cdds start        Run daemon in foreground (blocks terminal)
+  cdds daemon       Run daemon in background (detached)
+  cdds stop         Stop background daemon
+  cdds status       Check if background daemon is running
+  cdds help         Show this help message
+`);
+		return;
+	}
+
+	// Interactive Mode
+	let view = 'menu';
+	
+	const pm2Available = isPM2Available();
+	const systemdAvailable = isSystemdAvailable();
+	
+	while (true) {
+		const existingConfig = await parseEnv();
+		
+		if (view === 'menu') {
+			const menuItems = [
+				{ label: existingConfig ? 'Edit existing .env Configuration' : 'Run .env Configuration Wizard', value: 'env' },
+				{ label: 'Manage Daemon (built-in)', value: 'daemon' },
+				...(systemdAvailable ? [{ label: 'Manage Systemd Service', value: 'systemd' }] : []),
+				...(isWindows ? [{ label: 'Manage Windows Task Scheduler', value: 'taskscheduler' }] : []),
+				...(pm2Available ? [{ label: 'Manage PM2 Service', value: 'pm2' }] : []),
+				{ label: 'Exit', value: 'exit' }
+			];
+			
+			const action = await selectPrompt('\x1b[34m\x1b[1mCloudflare Dynamic DNS Service (CDDS)\x1b[0m\n\nSelect an action:', menuItems);
+			if (action === 'exit') break;
+			view = action;
+		} else if (view === 'env') {
+			const nextAction = await runEnvWizard(existingConfig);
+			view = nextAction;
+		} else if (view === 'install_prompt') {
+			const action = await selectPrompt('Which service manager would you like to use?', [
+				...(systemdAvailable ? [{ label: 'Systemd (Debian/Ubuntu, requires root)', value: 'systemd' }] : []),
+				...(isWindows ? [{ label: 'Windows Task Scheduler (requires Administrator)', value: 'taskscheduler' }] : []),
+				...(pm2Available ? [{ label: 'PM2 (detected in PATH)', value: 'pm2' }] : []),
+				{ label: 'Nevermind, return to main menu', value: 'menu' }
+			]);
+			view = action;
+		} else if (view === 'daemon') {
+			await runDaemonManager();
+			view = 'menu';
+		} else if (view === 'taskscheduler') {
+			await runTaskSchedulerManager();
+			view = 'menu';
+		} else if (view === 'systemd') {
+			await runSystemdManager();
+			view = 'menu';
+		} else if (view === 'pm2') {
+			await runPM2Manager();
+			view = 'menu';
+		}
+	}
+};
+
+main().catch(console.error);
