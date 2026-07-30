@@ -326,6 +326,65 @@ class CloudflareDDNS {
     }
   }
 
+  // Delete the opposite record type (A when using IPv6, AAAA when using IPv4)
+  // Prevents stale records from causing split DNS behavior
+  private async deleteOppositeRecord(target: string): Promise<void> {
+    try {
+      const oppositeType = this.config.ipType === "ipv6" ? "A" : "AAAA";
+      const zoneId = await this.getZoneId(target);
+      const timestamp = Date.now();
+      const url =
+        `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?name=${target}&type=${oppositeType}&_=${timestamp}`;
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      };
+
+      if (this.config.apiKeyType === "token") {
+        headers["Authorization"] = `Bearer ${this.config.apiKey}`;
+      } else {
+        headers["X-Auth-Email"] = this.config.email;
+        headers["X-Auth-Key"] = this.config.apiKey;
+      }
+
+      const response = await fetch(url, { method: "GET", headers });
+      const data = (await response.json()) as CloudflareResponse;
+
+      if (!data.success) return;
+
+      const oppositeRecords = (data.result as DNSRecord[]).filter(
+        (r) => r.name === target && r.type === oppositeType,
+      );
+
+      if (oppositeRecords.length === 0) return;
+
+      if (this.config.logs) {
+        console.log(
+          `Found ${oppositeRecords.length} conflicting ${oppositeType} record(s) for ${target} — removing to avoid split DNS...`,
+        );
+      }
+
+      for (const record of oppositeRecords) {
+        const deleteUrl = `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${record.id}`;
+        if (this.config.dryRun) {
+          console.log(`[DRY RUN] Would delete conflicting ${oppositeType} record: ${record.id} (IP: ${record.content})`);
+        } else {
+          await fetch(deleteUrl, { method: "DELETE", headers });
+          if (this.config.logs) {
+            console.log(`Deleted conflicting ${oppositeType} record: ${record.content}`);
+          }
+        }
+      }
+    } catch (error) {
+      if (this.config.logs) {
+        console.error(
+          `Error deleting opposite record for ${target}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
   // Clean up duplicate records (keep only the most recent one)
   private async cleanupDuplicateRecords(
     target: string,
@@ -443,6 +502,9 @@ class CloudflareDDNS {
         }
         return await this.updateDNSRecord(target, newIP);
       }
+
+      // Remove any conflicting record of the opposite type before creating
+      await this.deleteOppositeRecord(target);
 
       // Ensure we have a zone ID for this target
       const zoneId = await this.getZoneId(target);
