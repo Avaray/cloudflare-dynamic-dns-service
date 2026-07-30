@@ -9,6 +9,7 @@ interface CloudflareConfig {
   dryRun: boolean;
   email: string;
   ipLogFile?: string | boolean;
+  ipType?: "ipv4" | "ipv6";
   logs: boolean;
   proxied?: boolean;
   recordId?: string;
@@ -122,7 +123,8 @@ class CloudflareDDNS {
   private async getCurrentIP(): Promise<string> {
     try {
       const ip = await gip({
-        ensure: 3
+        ensure: 3,
+        type: this.config.ipType || "ipv4"
       });
       if (!ip) {
         throw new Error("Failed to retrieve IP address - GIP returned null");
@@ -257,13 +259,14 @@ class CloudflareDDNS {
     }
   }
 
-  // Get ALL DNS A records for a target (to check for duplicates)
+  // Get ALL DNS records for a target (to check for duplicates)
   private async getAllDNSRecords(target: string): Promise<DNSRecord[]> {
     try {
       const zoneId = await this.getZoneId(target);
       const timestamp = Date.now();
+      const recordType = this.config.ipType === "ipv6" ? "AAAA" : "A";
       const url =
-        `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?name=${target}&type=A&_=${timestamp}`;
+        `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?name=${target}&type=${recordType}&_=${timestamp}`;
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
@@ -290,7 +293,7 @@ class CloudflareDDNS {
         );
       }
 
-      return (data.result as DNSRecord[]).filter((r) => r.name === target && r.type === "A");
+      return (data.result as DNSRecord[]).filter((r) => r.name === target && r.type === recordType);
     } catch (error) {
       if (this.config.logs) {
         console.error(
@@ -311,7 +314,8 @@ class CloudflareDDNS {
     }
 
     if (this.config.logs) {
-      console.log(`Found ${records.length} duplicate A records for ${target}:`);
+      const recordType = this.config.ipType === "ipv6" ? "AAAA" : "A";
+      console.log(`Found ${records.length} duplicate ${recordType} records for ${target}:`);
       records.forEach((r) => console.log(`  - ID: ${r.id}, IP: ${r.content}`));
     }
 
@@ -362,11 +366,12 @@ class CloudflareDDNS {
   // Get DNS record from Cloudflare (with duplicate cleanup)
   private async getDNSRecord(target: string): Promise<DNSRecord | null> {
     try {
-      // Get all A records for this target
+      // Get all records for this target of configured type
       const records = await this.getAllDNSRecords(target);
 
       if (this.config.logs) {
-        console.log(`Found ${records.length} A records for ${target}:`);
+        const recordType = this.config.ipType === "ipv6" ? "AAAA" : "A";
+        console.log(`Found ${records.length} ${recordType} records for ${target}:`);
         records.forEach((r) => console.log(`  - ID: ${r.id}, IP: ${r.content}, TTL: ${r.ttl}`));
       }
 
@@ -423,7 +428,7 @@ class CloudflareDDNS {
       const url = `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`;
 
       const createData = {
-        type: "A",
+        type: this.config.ipType === "ipv6" ? "AAAA" : "A",
         name: target,
         content: newIP,
         ttl: this.config.ttl,
@@ -524,7 +529,7 @@ class CloudflareDDNS {
       const url = `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${recordId}`;
 
       const updateData = {
-        type: "A",
+        type: this.config.ipType === "ipv6" ? "AAAA" : "A",
         name: target,
         content: newIP,
         ttl: this.config.ttl,
@@ -817,6 +822,7 @@ const config: CloudflareConfig = {
   dryRun: process.argv.includes("--dry-run"),
   email: process.env.CDDS_EMAIL ?? "your_email@example.com",
   ipLogFile: getIPLogFileConfig(),
+  ipType: (process.env.CDDS_IP_TYPE?.toLowerCase() === "ipv6" ? "ipv6" : "ipv4"),
   logs: process.env.CDDS_LOGS?.toLowerCase() === "true",
   targets: getTargets(),
   ttl: parseInt(process.env.CDDS_TTL ?? "60"),
@@ -850,6 +856,9 @@ function validateConfig(config: CloudflareConfig): void {
   }
   if (config.checkIntervalMinutes! < 1) {
     throw new Error("Check interval must be at least 1 minute");
+  }
+  if (config.ipType && config.ipType !== "ipv4" && config.ipType !== "ipv6") {
+    throw new Error("IP Type must be either 'ipv4' or 'ipv6'");
   }
 }
 

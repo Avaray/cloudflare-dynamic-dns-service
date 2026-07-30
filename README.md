@@ -3,7 +3,7 @@
 A lightweight [Dynamic DNS](https://en.wikipedia.org/wiki/Dynamic_DNS) (DDNS) client for [Cloudflare](https://cloudflare.com) users who want to use their own
 [domains](https://en.wikipedia.org/wiki/Domain_name) for home-hosted services.
 
-If your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) frequently changes your IP address, and you want to host services on your home network under a static domain name, **CDDS** is a tool for you. It runs efficiently in the background, checks your public [IPv4 address](https://en.wikipedia.org/wiki/IPv4), and automatically updates your Cloudflare [DNS records](https://en.wikipedia.org/wiki/Domain_Name_System) whenever your IP changes.
+If your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) frequently changes your IP address, and you want to host services on your home network under a static domain name, **CDDS** is a tool for you. It runs efficiently in the background, checks your public [IPv4](https://en.wikipedia.org/wiki/IPv4) or [IPv6](https://en.wikipedia.org/wiki/IPv6) address, and automatically updates your Cloudflare [DNS records](https://en.wikipedia.org/wiki/Domain_Name_System) whenever your IP changes.
 
 It is slightly more complex alternative to services like
 [No-IP](http://www.noip.com/), [Dynu](http://www.dynu.com/),
@@ -18,6 +18,7 @@ It is slightly more complex alternative to services like
   - **[Systemd Service](https://en.wikipedia.org/wiki/Systemd):** Native Linux background service integration.
   - **[PM2](https://pm2.keymetrics.io/):** Node.js ecosystem process manager integration.
 - **Smart DNS Management:**
+  - **IPv6 Support:** Choose between updating IPv4 (`A`) or IPv6 (`AAAA`) records.
   - Auto-discovers Cloudflare Zone IDs.
   - Auto-detects your API credential type (Global Key vs Scoped Token).
   - Multi-target support (update multiple subdomains at once).
@@ -85,6 +86,7 @@ The `cdds` CLI wizard automatically generates a `.env` file in the **current wor
 | **CDDS_ZONE_ID**        | Cloudflare zone ID where domains will be added/updated. If empty, it will be auto-discovered based on the target domain.                    |
 | **CDDS_TTL**            | Cloudflare DNS record TTL in seconds (default `60`).                                                                                        |
 | **CDDS_CHECK_INTERVAL** | Check interval in minutes (default `5`).                                                                                                    |
+| **CDDS_IP_TYPE**        | IP Type to update: `ipv4` (A records) or `ipv6` (AAAA records) (default `ipv4`).                                                            |
 | **CDDS_LOGS**           | Enable logging to console (`true` or `false`, default `true`).                                                                              |
 | **CDDS_IP_LOGFILE**     | Enable IP logging. If `true`, IP changes will be logged to the `cdds.log` file.                                                             |
 | **CDDS_PROXIED**        | Enable Cloudflare proxy (orange cloud) for the DNS record (`true` or `false`, default `false`).                                             |
@@ -96,6 +98,7 @@ CDDS_API_KEY=YOUR_CLOUDFLARE_API_TOKEN
 CDDS_TARGETS=home.yourdomain.com
 CDDS_TTL=60
 CDDS_CHECK_INTERVAL=5
+CDDS_IP_TYPE=ipv4
 CDDS_LOGS=true
 CDDS_IP_LOGFILE=true
 CDDS_PROXIED=false

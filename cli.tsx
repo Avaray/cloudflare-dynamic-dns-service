@@ -45,6 +45,7 @@ const parseEnv = async (): Promise<CloudflareConfig | null> => {
 			logs: env.CDDS_LOGS !== 'false',
 			dryRun: false,
 			ipLogFile: env.CDDS_IP_LOGFILE || 'true',
+			ipType: env.CDDS_IP_TYPE?.toLowerCase() === 'ipv6' ? 'ipv6' : 'ipv4',
 			proxied: env.CDDS_PROXIED === 'true'
 		};
 	} catch (e) {
@@ -63,6 +64,7 @@ const EnvWizard = ({ onComplete, initialConfig }: { onComplete: (installNow: boo
 		interval: initialConfig?.checkIntervalMinutes?.toString() || '5',
 		logs: initialConfig?.logs !== false ? 'true' : 'false',
 		ipLogFile: (initialConfig?.ipLogFile || 'true').toString(),
+		ipType: initialConfig?.ipType || 'ipv4',
 		proxied: initialConfig?.proxied ? 'true' : 'false'
 	});
 
@@ -73,6 +75,7 @@ const EnvWizard = ({ onComplete, initialConfig }: { onComplete: (installNow: boo
 		{ key: 'zoneId', label: 'Zone ID (Optional, leave empty for auto-discover):', type: 'text' },
 		{ key: 'ttl', label: 'TTL in seconds (default 60):', type: 'text' },
 		{ key: 'interval', label: 'Check interval in minutes (default 5):', type: 'text' },
+		{ key: 'ipType', label: 'IP Type to update:', type: 'ipType' },
 		{ key: 'logs', label: 'Enable console logs?', type: 'bool' },
 		{ key: 'ipLogFile', label: 'Enable IP log file?', type: 'bool' },
 		{ key: 'proxied', label: 'Enable Cloudflare Proxy (Orange Cloud)?', type: 'bool' }
@@ -96,6 +99,7 @@ const EnvWizard = ({ onComplete, initialConfig }: { onComplete: (installNow: boo
 			if (newConfig.zoneId) envContent += `CDDS_ZONE_ID=${newConfig.zoneId}\n`;
 			envContent += `CDDS_TTL=${newConfig.ttl || '60'}\n`;
 			envContent += `CDDS_CHECK_INTERVAL=${newConfig.interval || '5'}\n`;
+			envContent += `CDDS_IP_TYPE=${newConfig.ipType}\n`;
 			envContent += `CDDS_LOGS=${newConfig.logs}\n`;
 			envContent += `CDDS_IP_LOGFILE=${newConfig.ipLogFile}\n`;
 			envContent += `CDDS_PROXIED=${newConfig.proxied}\n`;
@@ -133,6 +137,11 @@ const EnvWizard = ({ onComplete, initialConfig }: { onComplete: (installNow: boo
 						value={config[currentStep.key as keyof typeof config]}
 						onChange={(value) => setConfig({ ...config, [currentStep.key]: value })}
 						onSubmit={handleNext}
+					/>
+				) : currentStep?.type === 'ipType' ? (
+					<SelectInput
+						items={[{ label: 'IPv4 (A)', value: 'ipv4' }, { label: 'IPv6 (AAAA)', value: 'ipv6' }]}
+						onSelect={(item) => handleNext(item.value)}
 					/>
 				) : (
 					<SelectInput
