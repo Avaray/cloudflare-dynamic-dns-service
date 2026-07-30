@@ -674,22 +674,30 @@ class CloudflareDDNS {
       }
 
       const dnsIP = dnsRecord.content;
+      const dnsProxied = dnsRecord.proxied;
+      const configProxied = this.config.proxied ?? false;
       if (this.config.logs) {
-        console.log(`DNS record IP for ${target}: ${dnsIP}`);
+        console.log(`DNS record IP for ${target}: ${dnsIP} (proxied: ${dnsProxied})`);
       }
 
-      // Check if update is needed
-      if (this.currentIP === dnsIP) {
+      // Check if update is needed (IP or proxied status changed)
+      const ipChanged = this.currentIP !== dnsIP;
+      const proxiedChanged = dnsProxied !== configProxied;
+
+      if (!ipChanged && !proxiedChanged) {
         if (this.config.logs) {
-          console.log(`No update needed for ${target} - IP addresses match`);
+          console.log(`No update needed for ${target} - IP and proxy status match`);
         }
         return;
       }
 
       if (this.config.logs) {
-        console.log(
-          `IP address changed for ${target}: ${dnsIP} → ${this.currentIP}`,
-        );
+        if (ipChanged) {
+          console.log(`IP address changed for ${target}: ${dnsIP} → ${this.currentIP}`);
+        }
+        if (proxiedChanged) {
+          console.log(`Proxy status changed for ${target}: ${dnsProxied} → ${configProxied}`);
+        }
         console.log(`Updating DNS record for ${target}...`);
       }
 
