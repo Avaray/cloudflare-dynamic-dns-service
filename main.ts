@@ -1,6 +1,27 @@
 import gip from "gip";
 import datr from "datr";
-import { promises as fs } from "node:fs";
+import { promises as fs, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
+
+// Load .env file from current working directory (cross-runtime, no external deps)
+try {
+  const envPath = resolve(process.cwd(), '.env');
+  const envContent = readFileSync(envPath, 'utf8');
+  for (const line of envContent.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIndex = trimmed.indexOf('=');
+    if (eqIndex === -1) continue;
+    const key = trimmed.slice(0, eqIndex).trim();
+    const value = trimmed.slice(eqIndex + 1).trim();
+    if (key && !(key in process.env)) {
+      process.env[key] = value;
+    }
+  }
+} catch {
+  // .env file is optional, ignore if not found
+}
 
 interface CloudflareConfig {
   apiKey: string;
@@ -892,6 +913,19 @@ export async function startDaemon() {
   }
 }
 
-if (import.meta.main) {
+// Cross-runtime entry point check (works in Bun, Node.js, and Deno)
+const isMain = (() => {
+  try {
+    // Bun
+    if (typeof (import.meta as any).main === 'boolean') return (import.meta as any).main;
+    // Node.js ESM
+    const currentFile = fileURLToPath(import.meta.url);
+    return process.argv[1] === currentFile || process.argv[1]?.endsWith('/dist/main.js') || process.argv[1]?.endsWith('\\dist\\main.js');
+  } catch {
+    return false;
+  }
+})();
+
+if (isMain) {
   await startDaemon();
 }
