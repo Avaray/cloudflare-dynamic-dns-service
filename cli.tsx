@@ -53,7 +53,7 @@ const parseEnv = async (): Promise<CloudflareConfig | null> => {
 	}
 };
 
-const EnvWizard = ({ onComplete, initialConfig }: { onComplete: (installNow: boolean) => void, initialConfig: CloudflareConfig | null }) => {
+const EnvWizard = ({ onComplete, initialConfig }: { onComplete: (action: 'install' | 'daemon' | 'menu') => void, initialConfig: CloudflareConfig | null }) => {
 	const [step, setStep] = useState(0);
 	const [config, setConfig] = useState({
 		apiKey: initialConfig?.apiKey || '',
@@ -114,13 +114,14 @@ const EnvWizard = ({ onComplete, initialConfig }: { onComplete: (installNow: boo
 			<Box flexDirection="column" marginY={1}>
 				<Text color="green" bold>Saved .env successfully!</Text>
 				<Newline />
-				<Text>Do you want to install this service now?</Text>
+				<Text bold>What do you want to do now?</Text>
 				<SelectInput
 					items={[
-						{ label: 'Yes, go to service installation', value: 'yes' },
-						{ label: 'No, return to main menu', value: 'no' }
+						{ label: 'Install as a service', value: 'install' },
+						{ label: 'Run temporarily (built-in daemon)', value: 'daemon' },
+						{ label: 'Return to main menu', value: 'menu' }
 					]}
-					onSelect={(item) => onComplete(item.value === 'yes')}
+					onSelect={(item) => onComplete(item.value as 'install' | 'daemon' | 'menu')}
 				/>
 			</Box>
 		);
@@ -696,7 +697,11 @@ const App = () => {
 			)}
 
 			{view === 'env' && (
-				<EnvWizard initialConfig={existingConfig} onComplete={(installNow) => setView(installNow ? 'install_prompt' : 'menu')} />
+				<EnvWizard initialConfig={existingConfig} onComplete={(action) => {
+					if (action === 'install') setView('install_prompt');
+					else if (action === 'daemon') setView('daemon');
+					else setView('menu');
+				}} />
 			)}
 			{view === 'daemon' && <DaemonManager pidFile={PID_FILE_PATH} onBack={() => setView('menu')} />}
 			{view === 'taskscheduler' && <TaskSchedulerManager onBack={() => setView('menu')} />}
