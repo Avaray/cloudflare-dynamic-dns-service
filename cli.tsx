@@ -141,11 +141,13 @@ const EnvWizard = ({ onComplete, initialConfig }: { onComplete: (installNow: boo
 				) : currentStep?.type === 'ipType' ? (
 					<SelectInput
 						items={[{ label: 'IPv4 (A)', value: 'ipv4' }, { label: 'IPv6 (AAAA)', value: 'ipv6' }]}
+						initialIndex={config[currentStep.key as keyof typeof config] === 'ipv6' ? 1 : 0}
 						onSelect={(item) => handleNext(item.value)}
 					/>
 				) : (
 					<SelectInput
 						items={[{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }]}
+						initialIndex={config[currentStep.key as keyof typeof config] === 'false' ? 1 : 0}
 						onSelect={(item) => handleNext(item.value)}
 					/>
 				)}
