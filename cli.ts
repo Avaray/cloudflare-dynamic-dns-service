@@ -163,15 +163,31 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 		{ label: 'IPv4 (A)', value: 'ipv4' },
 		{ label: 'IPv6 (AAAA)', value: 'ipv6' }
 	], ipType === 'ipv6' ? 1 : 0);
-	logs = await selectPrompt('Enable console logs?', [
-		{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-	], logs === 'false' ? 1 : 0);
-	ipLogFile = await selectPrompt('Enable IP log file?', [
-		{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-	], ipLogFile === 'false' ? 1 : 0);
+
 	proxied = await selectPrompt('Enable Cloudflare Proxy (Orange Cloud)?', [
 		{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
 	], proxied === 'false' ? 1 : 0);
+
+	let actionLogFile = 'false';
+	const masterLogs = await selectPrompt('Do you want to enable logging?', [
+		{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+	], logs === 'false' ? 1 : 0);
+
+	if (masterLogs === 'true') {
+		logs = await selectPrompt('Log everything to the terminal (console)?', [
+			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+		], logs === 'false' ? 1 : 0);
+		actionLogFile = await selectPrompt('Log all actions to a file (cdds-actions.log)?', [
+			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+		]);
+		ipLogFile = await selectPrompt('Log new IP addresses to a file (cdds-ip.log)?', [
+			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+		], ipLogFile === 'false' ? 1 : 0);
+	} else {
+		logs = 'false';
+		actionLogFile = 'false';
+		ipLogFile = 'false';
+	}
 
 	let envContent = `CDDS_API_KEY=${apiKey}\n`;
 	if (email) envContent += `CDDS_EMAIL=${email}\n`;
@@ -180,9 +196,10 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	envContent += `CDDS_TTL=${ttl}\n`;
 	envContent += `CDDS_CHECK_INTERVAL=${interval}\n`;
 	envContent += `CDDS_IP_TYPE=${ipType}\n`;
-	envContent += `CDDS_LOGS=${logs}\n`;
-	envContent += `CDDS_IP_LOGFILE=${ipLogFile}\n`;
 	envContent += `CDDS_PROXIED=${proxied}\n`;
+	envContent += `CDDS_LOGS=${logs}\n`;
+	envContent += `CDDS_ACTION_LOGFILE=${actionLogFile}\n`;
+	envContent += `CDDS_IP_LOGFILE=${ipLogFile}\n`;
 
 	await fsPromises.writeFile(process.cwd() + '/.env', envContent, "utf8");
 	logMessage("Generated .env file via Wizard.");

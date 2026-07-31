@@ -32,6 +32,7 @@ interface CloudflareConfig {
   ipLogFile?: string | boolean;
   ipType?: "ipv4" | "ipv6";
   logs: boolean;
+  actionLogFile?: string | boolean;
   proxied?: boolean;
   recordId?: string;
   targets: string[];
@@ -913,6 +914,7 @@ const config: CloudflareConfig = {
   ipLogFile: getIPLogFileConfig(),
   ipType: (process.env.CDDS_IP_TYPE?.toLowerCase() === "ipv6" ? "ipv6" : "ipv4"),
   logs: process.env.CDDS_LOGS?.toLowerCase() === "true",
+  actionLogFile: process.env.CDDS_ACTION_LOGFILE?.toLowerCase() === "true",
   proxied: process.env.CDDS_PROXIED?.toLowerCase() === "true",
   targets: getTargets(),
   ttl: parseInt(process.env.CDDS_TTL ?? "60"),
@@ -957,6 +959,41 @@ export { CloudflareDDNS, detectApiKeyType, getTargets, validateConfig, type Clou
 
 // Main execution
 export async function startDaemon() {
+
+    const terminalLogs = process.env.CDDS_LOGS?.toLowerCase() === "true";
+    const actionLogs = process.env.CDDS_ACTION_LOGFILE?.toLowerCase() === "true";
+    
+    if (actionLogs || !terminalLogs) {
+      const { appendFileSync } = await import("node:fs");
+      const { resolve } = await import("node:path");
+      
+      const actionLogPath = resolve(process.cwd(), "cdds-actions.log");
+      
+      const origLog = console.log;
+      const origError = console.error;
+      
+      // Override config.logs so that the class actually calls console.log
+      config.logs = terminalLogs || actionLogs;
+      
+      console.log = (...args) => {
+        if (terminalLogs) origLog.apply(console, args);
+        if (actionLogs) {
+          const time = new Date().toISOString();
+          // strip ANSI escape codes for file log
+          const cleanMsg = args.join(" ").replace(/\x1b\[[0-9;]*m/g, "");
+          appendFileSync(actionLogPath, `[${time}] ${cleanMsg}\n`, "utf8");
+        }
+      };
+      console.error = (...args) => {
+        if (terminalLogs) origError.apply(console, args);
+        if (actionLogs) {
+          const time = new Date().toISOString();
+          const cleanMsg = args.join(" ").replace(/\x1b\[[0-9;]*m/g, "");
+          appendFileSync(actionLogPath, `[${time}] [ERROR] ${cleanMsg}\n`, "utf8");
+        }
+      };
+    }
+
   try {
     validateConfig(config);
     const ddnsService = new CloudflareDDNS(config);
