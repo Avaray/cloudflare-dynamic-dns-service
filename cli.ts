@@ -454,6 +454,7 @@ const runDaemonManager = async () => {
 		const items = [
 			...(running ? [] : [{ label: 'Start Daemon (background)', value: 'start' }]),
 			...(running ? [{ label: 'Stop Daemon', value: 'stop' }] : []),
+			...(running ? [{ label: 'Reload Daemon (restart with latest config)', value: 'reload' }] : []),
 			{ label: 'Refresh Status', value: 'refresh' },
 			{ label: 'Go Back', value: 'back' },
 		];
@@ -486,6 +487,28 @@ const runDaemonManager = async () => {
 				await fsPromises.writeFile(PID_FILE, '', "utf8");
 				logMessage(`Daemon: Stopped (PID: ${pid})`);
 				console.log(`\x1b[32mSUCCESS: Daemon stopped (PID: ${pid}).\x1b[0m`);
+			} else if (action === 'reload') {
+				if (!running || !pid) throw new Error('Daemon is not running.');
+				const cfg = await parseEnv();
+				if (!cfg) throw new Error('No .env file found. Run the configuration wizard first.');
+				validateConfig(cfg);
+
+				// Stop the old process
+				process.kill(pid, 'SIGTERM');
+				await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+
+				// Start fresh with latest config
+				const bunExec = process.execPath;
+				const scriptPath = import.meta.url ? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') : process.argv[1];
+				const child = spawn(bunExec, [scriptPath, 'start'], {
+					detached: true,
+					stdio: ['ignore', 'ignore', 'ignore'],
+					env: { ...process.env },
+				});
+				await fsPromises.writeFile(PID_FILE, child.pid?.toString() || '', "utf8");
+				child.unref();
+				logMessage(`Daemon: Reloaded (old PID: ${pid}, new PID: ${child.pid})`);
+				console.log(`\x1b[32mSUCCESS: Daemon reloaded! (old PID: ${pid} → new PID: ${child.pid})\x1b[0m`);
 			}
 		} catch (e: any) {
 			if (e.code === 'ESRCH') {
