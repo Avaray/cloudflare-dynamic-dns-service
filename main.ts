@@ -397,7 +397,7 @@ class CloudflareDDNS {
     if (this.config.logs) {
       const recordType = this.config.ipType === "ipv6" ? "AAAA" : "A";
       console.log(`Found ${records.length} duplicate ${recordType} records for ${target}:`);
-      records.forEach((r) => console.log(`  - ID: ${r.id}, IP: ${r.content}`));
+      records.forEach((r) => console.log(`- ID: ${r.id}, IP: ${r.content}`));
     }
 
     // Sort by ID to get consistent ordering
@@ -453,7 +453,7 @@ class CloudflareDDNS {
       if (this.config.logs) {
         const recordType = this.config.ipType === "ipv6" ? "AAAA" : "A";
         console.log(`Found ${records.length} ${recordType} records for ${target}:`);
-        records.forEach((r) => console.log(`  - ID: ${r.id}, IP: ${r.content}, TTL: ${r.ttl}`));
+        records.forEach((r) => console.log(`- ID: ${r.id}, IP: ${r.content}, TTL: ${r.ttl}`));
       }
 
       if (records.length === 0) {

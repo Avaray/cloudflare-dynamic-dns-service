@@ -98,14 +98,8 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 	});
 };
 
-const pausePrompt = async () => {
-	const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-	return new Promise<void>((resolve) => {
-		rl.question('\nPress Enter to continue...', () => {
-			rl.close();
-			resolve();
-		});
-	});
+const pausePrompt = async (ms: number = 1500) => {
+	return new Promise<void>((resolve) => setTimeout(resolve, ms));
 };
 
 // ... parsing logic
