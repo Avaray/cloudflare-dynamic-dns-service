@@ -2,7 +2,7 @@
 import process from 'process';
 import { execSync, spawn } from 'child_process';
 import { promises as fsPromises } from 'node:fs';
-import { appendFileSync } from 'fs';
+import { appendFileSync, writeFileSync, unlinkSync } from 'fs';
 import * as readline from 'readline';
 
 import datr from 'datr';
@@ -429,12 +429,59 @@ const runTaskSchedulerManager = async () => {
 			validateConfig(cfg);
 
 			if (action === 'install') {
-				const bunExec = process.execPath;
-				const scriptPath = import.meta.url ? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') : process.argv[1];
-				execSync(`schtasks /create /tn "${TASK_NAME}" /tr "\"${bunExec}\" \"${scriptPath}\" start" /sc ONSTART /ru SYSTEM /f`);
+				const execPath = process.execPath.replace(/\//g, '\\');
+				const scriptPath = (import.meta.url
+					? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
+					: process.argv[1]
+				).replace(/\//g, '\\');
+				const workDir = process.cwd().replace(/\//g, '\\');
+
+				// Build task XML — avoids all quoting/escaping issues with spaces in paths
+				const taskXml = `<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>Cloudflare Dynamic DNS Service — keeps DNS records in sync with your public IP</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <BootTrigger>
+      <Enabled>true</Enabled>
+      <Delay>PT30S</Delay>
+    </BootTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-18</UserId>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <RestartInterval>PT1M</RestartInterval>
+    <RestartCount>3</RestartCount>
+    <Enabled>true</Enabled>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>${execPath}</Command>
+      <Arguments>"${scriptPath}" start</Arguments>
+      <WorkingDirectory>${workDir}</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>`;
+
+				// Write XML to a temp file (UTF-16 LE — required by schtasks)
+				const tmpXml = process.env.TEMP + '\\cdds-task.xml';
+				const xmlBuffer = Buffer.from('\xFF\xFE' + taskXml.split('').map(c => c + '\0').join(''), 'binary');
+				writeFileSync(tmpXml, xmlBuffer);
+
+				execSync(`schtasks /create /tn "${TASK_NAME}" /xml "${tmpXml}" /f`);
+				try { unlinkSync(tmpXml); } catch {}
 				execSync(`schtasks /run /tn "${TASK_NAME}"`);
 				console.log('\x1b[32mSUCCESS: Task installed and started successfully!\x1b[0m');
-				logMessage('TaskScheduler: Installed CDDS-DynamicDNS task');
+				logMessage(`TaskScheduler: Installed ${TASK_NAME} task`);
 			} else if (action === 'pause') {
 				try { execSync(`schtasks /end /tn "${TASK_NAME}"`); } catch { }
 				execSync(`schtasks /change /tn "${TASK_NAME}" /disable`);
