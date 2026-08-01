@@ -440,7 +440,7 @@ const runTaskSchedulerManager = async () => {
 				const taskXml = `<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>Cloudflare Dynamic DNS Service — keeps DNS records in sync with your public IP</Description>
+    <Description>Cloudflare Dynamic DNS Service - keeps DNS records in sync with your public IP</Description>
   </RegistrationInfo>
   <Triggers>
     <BootTrigger>
@@ -472,10 +472,11 @@ const runTaskSchedulerManager = async () => {
   </Actions>
 </Task>`;
 
-				// Write XML to a temp file (UTF-16 LE — required by schtasks)
-				const tmpXml = process.env.TEMP + '\\cdds-task.xml';
-				const xmlBuffer = Buffer.from('\xFF\xFE' + taskXml.split('').map(c => c + '\0').join(''), 'binary');
-				writeFileSync(tmpXml, xmlBuffer);
+				// Write XML as UTF-16 LE with BOM (required by schtasks /xml)
+				const tmpXml = (process.env.TEMP || process.env.TMP || 'C:\\Temp') + '\\cdds-task.xml';
+				const bom = Buffer.from([0xFF, 0xFE]);
+				const xmlUtf16 = Buffer.from(taskXml, 'utf16le');
+				writeFileSync(tmpXml, Buffer.concat([bom, xmlUtf16]));
 
 				execSync(`schtasks /create /tn "${TASK_NAME}" /xml "${tmpXml}" /f`);
 				try { unlinkSync(tmpXml); } catch {}
