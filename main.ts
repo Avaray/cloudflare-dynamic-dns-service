@@ -30,7 +30,7 @@ interface CloudflareConfig {
   dryRun: boolean;
   email: string;
   ipLogFile?: string | boolean;
-  ipType?: "ipv4" | "ipv6";
+  ipType?: "ipv4" | "ipv6" | "both";
   logs: boolean;
   actionLogFile?: string | boolean;
   proxied?: boolean;
@@ -41,7 +41,8 @@ interface CloudflareConfig {
 }
 
 interface TargetInfo {
-  recordId?: string;
+  recordIdV4?: string;
+  recordIdV6?: string;
   target: string;
   zoneId: string;
 }
@@ -78,9 +79,9 @@ interface CloudflareZoneResponse {
 
 class CloudflareDDNS {
   private config: CloudflareConfig;
-  private currentIP: string = "";
+  private currentIP: { ipv4: string | null; ipv6: string | null } = { ipv4: null, ipv6: null };
+  private lastKnownIP: { ipv4: string | null; ipv6: string | null } = { ipv4: null, ipv6: null };
   private ipLogPath: string = "";
-  private lastKnownIP: string = "";
   private targetInfos: TargetInfo[] = [];
 
   constructor(config: CloudflareConfig) {
@@ -114,12 +115,19 @@ class CloudflareDDNS {
   }
 
   // Log IP change to file
-  private async logIPChange(newIP: string): Promise<void> {
+  private async logIPChange(newIP: { ipv4: string | null; ipv6: string | null }): Promise<void> {
     if (!this.ipLogPath) return;
 
     try {
       const timeString = datr({ precision: 'ms', separator: '-' });
-      const logEntry = `${timeString} > ${newIP}\n`;
+      
+      const parts = [];
+      if (newIP.ipv4) parts.push(`IPv4: ${newIP.ipv4}`);
+      if (newIP.ipv6) parts.push(`IPv6: ${newIP.ipv6}`);
+      if (parts.length === 0) return;
+      const ipString = parts.join(", ");
+
+      const logEntry = `${timeString} > ${ipString}\n`;
 
       let existingContent = "";
       try {
@@ -130,7 +138,7 @@ class CloudflareDDNS {
       await fs.writeFile(this.ipLogPath, existingContent + logEntry, "utf8");
 
       if (this.config.logs) {
-        console.log(`IP change logged to file: ${timeString} > ${newIP}`);
+        console.log(`IP change logged to file: ${timeString} > ${ipString}`);
       }
     } catch (error) {
       if (this.config.logs) {
@@ -142,17 +150,24 @@ class CloudflareDDNS {
   }
 
   // Get current external IP using gip
-  private async getCurrentIP(): Promise<string> {
+  private async getCurrentIP(): Promise<{ ipv4: string | null; ipv6: string | null }> {
+    const result: { ipv4: string | null; ipv6: string | null } = { ipv4: null, ipv6: null };
     try {
-      const ip = await gip({
-        verbose: false,
-        ensure: 3,
-        type: this.config.ipType || "ipv4"
-      });
-      if (!ip) {
-        throw new Error("Failed to retrieve IP address - GIP returned null");
+      if (this.config.ipType === "ipv4" || this.config.ipType === "both") {
+        try {
+          result.ipv4 = await gip({ verbose: false, ensure: 3, type: "ipv4" });
+        } catch (e: any) {
+          if (this.config.logs) console.error("Failed to get IPv4 address:", e.message);
+        }
       }
-      return ip;
+      if (this.config.ipType === "ipv6" || this.config.ipType === "both") {
+        try {
+          result.ipv6 = await gip({ verbose: false, ensure: 3, type: "ipv6" });
+        } catch (e: any) {
+          if (this.config.logs) console.error("Failed to get IPv6 address:", e.message);
+        }
+      }
+      return result;
     } catch (error) {
       throw new Error(
         `Failed to get current IP: ${error instanceof Error ? error.message : String(error)}`,
@@ -283,11 +298,10 @@ class CloudflareDDNS {
   }
 
   // Get ALL DNS records for a target (to check for duplicates)
-  private async getAllDNSRecords(target: string): Promise<DNSRecord[]> {
+  private async getAllDNSRecords(target: string, recordType: "A" | "AAAA"): Promise<DNSRecord[]> {
     try {
       const zoneId = await this.getZoneId(target);
       const timestamp = Date.now();
-      const recordType = this.config.ipType === "ipv6" ? "AAAA" : "A";
       const url =
         `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?name=${target}&type=${recordType}&_=${timestamp}`;
 
@@ -327,11 +341,11 @@ class CloudflareDDNS {
     }
   }
 
-  // Delete the opposite record type (A when using IPv6, AAAA when using IPv4)
-  // Prevents stale records from causing split DNS behavior
-  private async deleteOppositeRecord(target: string): Promise<void> {
+  // Delete opposite type record (IPv4 vs IPv6) to prevent conflicts
+  private async deleteOppositeRecord(target: string, type: "ipv4" | "ipv6" | "both"): Promise<void> {
     try {
-      const oppositeType = this.config.ipType === "ipv6" ? "A" : "AAAA";
+      if (type === "both") return;
+      const oppositeType = type === "ipv6" ? "A" : "AAAA";
       const zoneId = await this.getZoneId(target);
       const timestamp = Date.now();
       const url =
@@ -390,13 +404,13 @@ class CloudflareDDNS {
   private async cleanupDuplicateRecords(
     target: string,
     records: DNSRecord[],
+    recordType: "A" | "AAAA",
   ): Promise<DNSRecord | null> {
     if (records.length <= 1) {
       return records[0] || null;
     }
 
     if (this.config.logs) {
-      const recordType = this.config.ipType === "ipv6" ? "AAAA" : "A";
       console.log(`Found ${records.length} duplicate ${recordType} records for ${target}:`);
       records.forEach((r) => console.log(`- ID: ${r.id}, IP: ${r.content}`));
     }
@@ -446,13 +460,12 @@ class CloudflareDDNS {
   }
 
   // Get DNS record from Cloudflare (with duplicate cleanup)
-  private async getDNSRecord(target: string): Promise<DNSRecord | null> {
+  private async getDNSRecord(target: string, recordType: "A" | "AAAA"): Promise<DNSRecord | null> {
     try {
       // Get all records for this target of configured type
-      const records = await this.getAllDNSRecords(target);
+      const records = await this.getAllDNSRecords(target, recordType);
 
       if (this.config.logs) {
-        const recordType = this.config.ipType === "ipv6" ? "AAAA" : "A";
         console.log(`Found ${records.length} ${recordType} records for ${target}:`);
         records.forEach((r) => console.log(`- ID: ${r.id}, IP: ${r.content}, TTL: ${r.ttl}`));
       }
@@ -462,17 +475,22 @@ class CloudflareDDNS {
       }
 
       // If we have duplicates, clean them up
-      const record = await this.cleanupDuplicateRecords(target, records);
+      const record = await this.cleanupDuplicateRecords(target, records, recordType);
 
       if (record) {
         // Cache the record ID for future use
         const existingInfo = this.targetInfos.find((info) => info.target === target);
         const zoneId = await this.getZoneId(target);
         if (existingInfo) {
-          existingInfo.recordId = record.id;
+          if (recordType === "A") existingInfo.recordIdV4 = record.id;
+          else existingInfo.recordIdV6 = record.id;
           existingInfo.zoneId = zoneId;
         } else {
-          this.targetInfos.push({ target, zoneId, recordId: record.id });
+          this.targetInfos.push({ 
+            target, 
+            zoneId, 
+            ...(recordType === "A" ? { recordIdV4: record.id } : { recordIdV6: record.id })
+          });
         }
       }
 
@@ -491,30 +509,16 @@ class CloudflareDDNS {
   private async createDNSRecord(
     target: string,
     newIP: string,
+    recordType: "A" | "AAAA",
   ): Promise<boolean> {
     try {
-      // First, check if a record already exists
-      const existingRecord = await this.getDNSRecord(target);
-      if (existingRecord) {
-        if (this.config.logs) {
-          console.log(
-            `Record already exists for ${target}, updating instead of creating...`,
-          );
-        }
-        return await this.updateDNSRecord(target, newIP);
-      }
-
-      // Remove any conflicting record of the opposite type before creating
-      await this.deleteOppositeRecord(target);
-
       // Ensure we have a zone ID for this target
       const zoneId = await this.getZoneId(target);
 
       const url = `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`;
 
       const createData = {
-        type: this.config.ipType === "ipv6" ? "AAAA" : "A",
-        name: target,
+        type: recordType,   name: target,
         content: newIP,
         ttl: this.config.ttl,
         proxied: this.config.proxied ?? false,
@@ -558,7 +562,7 @@ class CloudflareDDNS {
               `Record already exists for ${target}, attempting to update...`,
             );
           }
-          return await this.updateDNSRecord(target, newIP);
+          return await this.updateDNSRecord(target, newIP, recordType);
         }
 
         throw new Error(
@@ -570,12 +574,17 @@ class CloudflareDDNS {
 
       // Cache the new record ID
       const existingInfo = this.targetInfos.find((info) => info.target === target);
-      if (existingInfo) {
-        existingInfo.recordId = newRecord.id;
-        existingInfo.zoneId = zoneId;
-      } else {
-        this.targetInfos.push({ target, zoneId, recordId: newRecord.id });
-      }
+        if (existingInfo) {
+          if (recordType === "A") existingInfo.recordIdV4 = newRecord.id;
+          else existingInfo.recordIdV6 = newRecord.id;
+          existingInfo.zoneId = zoneId;
+        } else {
+          this.targetInfos.push({
+            target,
+            zoneId,
+            ...(recordType === "A" ? { recordIdV4: newRecord.id } : { recordIdV6: newRecord.id }),
+          });
+        }
 
       if (this.config.logs) {
         console.log(`DNS record created successfully: ${target} → ${newIP}`);
@@ -595,18 +604,19 @@ class CloudflareDDNS {
   private async updateDNSRecord(
     target: string,
     newIP: string,
+    recordType: "A" | "AAAA",
     existingRecord?: DNSRecord,
   ): Promise<boolean> {
     try {
       // Use the already-fetched record if provided, otherwise fetch it
-      const record = existingRecord ?? await this.getDNSRecord(target);
+      const record = existingRecord ?? await this.getDNSRecord(target, recordType);
       if (!record) {
         if (this.config.logs) {
           console.log(
             `No existing record found for ${target}, creating new one...`,
           );
         }
-        return await this.createDNSRecord(target, newIP);
+        return await this.createDNSRecord(target, newIP, recordType);
       }
 
       const recordId = record.id;
@@ -615,7 +625,7 @@ class CloudflareDDNS {
       const url = `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${recordId}`;
 
       const updateData = {
-        type: this.config.ipType === "ipv6" ? "AAAA" : "A",
+        type: recordType,
         name: target,
         content: newIP,
         ttl: this.config.ttl,
@@ -671,12 +681,13 @@ class CloudflareDDNS {
   private async verifyDNSUpdate(
     target: string,
     expectedIP: string,
+    recordType: "A" | "AAAA",
     maxRetries: number = 5,
   ): Promise<boolean> {
     for (let i = 0; i < maxRetries; i++) {
       await this.sleep(2000); // Wait 2 seconds between checks
 
-      const record = await this.getDNSRecord(target);
+      const record = await this.getDNSRecord(target, recordType);
       if (record && record.content === expectedIP) {
         if (this.config.logs) {
           console.log(`DNS update verified: ${target} points to ${expectedIP}`);
@@ -707,69 +718,89 @@ class CloudflareDDNS {
   // Main update cycle for a single target
   private async performUpdateForTarget(target: string): Promise<void> {
     try {
-      // Clear cached record ID to force fresh lookup
       const existingInfo = this.targetInfos.find((info) => info.target === target);
       if (existingInfo) {
-        existingInfo.recordId = undefined;
+        existingInfo.recordIdV4 = undefined;
+        existingInfo.recordIdV6 = undefined;
       }
 
-      // Get current DNS record (this will also clean up duplicates if found)
-      const dnsRecord = await this.getDNSRecord(target);
+      // Enforce strict type (delete opposite)
+      if (this.config.ipType !== "both") {
+        await this.deleteOppositeRecord(target, this.config.ipType || "ipv4");
+      }
 
-      if (!dnsRecord) {
-        if (this.config.logs) {
-          console.log(
-            `DNS record not found for ${target}, creating new record...`,
-          );
+      const typesToProcess: Array<{ type: "A" | "AAAA", ip: string | null }> = [];
+      if (this.config.ipType === "ipv4" || this.config.ipType === "both") {
+        typesToProcess.push({ type: "A", ip: this.currentIP.ipv4 });
+      }
+      if (this.config.ipType === "ipv6" || this.config.ipType === "both") {
+        typesToProcess.push({ type: "AAAA", ip: this.currentIP.ipv6 });
+      }
+
+      for (const { type, ip } of typesToProcess) {
+        if (!ip) {
+          if (this.config.logs) console.log(`Skipping ${type} record for ${target} - no IP available`);
+          continue;
         }
-        const createSuccess = await this.createDNSRecord(
-          target,
-          this.currentIP,
-        );
-        if (!createSuccess) {
+
+        const dnsRecord = await this.getDNSRecord(target, type);
+
+        if (!dnsRecord) {
           if (this.config.logs) {
-            console.error(`Failed to create DNS record for ${target}`);
+            console.log(
+              `DNS ${type} record not found for ${target}, creating new record...`,
+            );
           }
-        } else {
-          // Verify the record was created
-          await this.verifyDNSUpdate(target, this.currentIP);
+          const createSuccess = await this.createDNSRecord(
+            target,
+            ip,
+            type,
+          );
+          if (!createSuccess) {
+            if (this.config.logs) {
+              console.error(`Failed to create ${type} record for ${target}`);
+            }
+          } else {
+            // Verify the record was created
+            await this.verifyDNSUpdate(target, ip, type);
+          }
+          continue;
         }
-        return;
-      }
 
-      const dnsIP = dnsRecord.content;
-      const dnsProxied = dnsRecord.proxied;
-      const configProxied = this.config.proxied ?? false;
-      if (this.config.logs) {
-        console.log(`DNS record IP for ${target}: ${dnsIP} (proxied: ${dnsProxied})`);
-      }
-
-      // Check if update is needed (IP or proxied status changed)
-      const ipChanged = this.currentIP !== dnsIP;
-      const proxiedChanged = dnsProxied !== configProxied;
-
-      if (!ipChanged && !proxiedChanged) {
+        const dnsIP = dnsRecord.content;
+        const dnsProxied = dnsRecord.proxied;
+        const configProxied = this.config.proxied ?? false;
         if (this.config.logs) {
-          console.log(`No update needed for ${target} - IP and proxy status match`);
+          console.log(`DNS ${type} record IP for ${target}: ${dnsIP} (proxied: ${dnsProxied})`);
         }
-        return;
-      }
 
-      if (this.config.logs) {
-        if (ipChanged) {
-          console.log(`IP address changed for ${target}: ${dnsIP} → ${this.currentIP}`);
-        }
-        if (proxiedChanged) {
-          console.log(`Proxy status changed for ${target}: ${dnsProxied} → ${configProxied}`);
-        }
-        console.log(`Updating DNS record for ${target}...`);
-      }
+        // Check if update is needed (IP or proxied status changed)
+        const ipChanged = ip !== dnsIP;
+        const proxiedChanged = dnsProxied !== configProxied;
 
-      // Update DNS record, passing the already-fetched record to avoid redundant API call
-      const updateSuccess = await this.updateDNSRecord(target, this.currentIP, dnsRecord);
-      if (!updateSuccess) {
+        if (!ipChanged && !proxiedChanged) {
+          if (this.config.logs) {
+            console.log(`No update needed for ${target} - ${type} IP and proxy status match`);
+          }
+          continue;
+        }
+
         if (this.config.logs) {
-          console.error(`Failed to update DNS record for ${target}`);
+          if (ipChanged) {
+            console.log(`IP address changed for ${target} (${type}): ${dnsIP} → ${ip}`);
+          }
+          if (proxiedChanged) {
+            console.log(`Proxy status changed for ${target}: ${dnsProxied} → ${configProxied}`);
+          }
+          console.log(`Updating DNS ${type} record for ${target}...`);
+        }
+
+        // Update DNS record, passing the already-fetched record to avoid redundant API call
+        const updateSuccess = await this.updateDNSRecord(target, ip, type, dnsRecord);
+        if (!updateSuccess) {
+          if (this.config.logs) {
+            console.error(`Failed to update DNS ${type} record for ${target}`);
+          }
         }
       }
     } catch (error) {
@@ -789,11 +820,16 @@ class CloudflareDDNS {
       }
       this.currentIP = await this.getCurrentIP();
       if (this.config.logs) {
-        console.log(`Current external IP: ${this.currentIP}`);
+        const ips = [];
+        if (this.currentIP.ipv4) ips.push(`IPv4: ${this.currentIP.ipv4}`);
+        if (this.currentIP.ipv6) ips.push(`IPv6: ${this.currentIP.ipv6}`);
+        console.log(`Current external IP(s): ${ips.join(", ")}`);
       }
 
       // Check if IP changed and log it
-      if (this.lastKnownIP && this.currentIP !== this.lastKnownIP) {
+      const ipv4Changed = this.lastKnownIP.ipv4 !== null && this.currentIP.ipv4 !== this.lastKnownIP.ipv4;
+      const ipv6Changed = this.lastKnownIP.ipv6 !== null && this.currentIP.ipv6 !== this.lastKnownIP.ipv6;
+      if (ipv4Changed || ipv6Changed) {
         await this.logIPChange(this.currentIP);
       }
 
@@ -805,7 +841,7 @@ class CloudflareDDNS {
         await this.performUpdateForTarget(target);
       }
 
-      this.lastKnownIP = this.currentIP;
+      this.lastKnownIP = { ...this.currentIP };
     } catch (error) {
       if (this.config.logs) {
         console.error(
@@ -912,7 +948,7 @@ const config: CloudflareConfig = {
   dryRun: process.argv.includes("--dry-run"),
   email: process.env.CDDS_EMAIL ?? "your_email@example.com",
   ipLogFile: getIPLogFileConfig(),
-  ipType: (process.env.CDDS_IP_TYPE?.toLowerCase() === "ipv6" ? "ipv6" : "ipv4"),
+  ipType: (["ipv4", "ipv6", "both"].includes(process.env.CDDS_IP_TYPE?.toLowerCase() || "") ? process.env.CDDS_IP_TYPE!.toLowerCase() as any : "ipv4"),
   logs: process.env.CDDS_LOGS?.toLowerCase() === "true",
   actionLogFile: process.env.CDDS_ACTION_LOGFILE?.toLowerCase() === "true",
   proxied: process.env.CDDS_PROXIED?.toLowerCase() === "true",
@@ -949,7 +985,7 @@ function validateConfig(config: CloudflareConfig): void {
   if (config.checkIntervalMinutes! < 1) {
     throw new Error("Check interval must be at least 1 minute");
   }
-  if (config.ipType && config.ipType !== "ipv4" && config.ipType !== "ipv6") {
+  if (config.ipType && !["ipv4", "ipv6", "both"].includes(config.ipType)) {
     throw new Error("IP Type must be either 'ipv4' or 'ipv6'");
   }
 }

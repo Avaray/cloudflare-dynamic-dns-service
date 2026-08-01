@@ -129,7 +129,7 @@ const parseEnv = async (): Promise<CloudflareConfig | null> => {
 			logs: env.CDDS_LOGS !== 'false',
 			dryRun: false,
 			ipLogFile: env.CDDS_IP_LOGFILE || 'true',
-			ipType: env.CDDS_IP_TYPE?.toLowerCase() === 'ipv6' ? 'ipv6' : 'ipv4',
+			ipType: ['ipv4', 'ipv6', 'both'].includes(env.CDDS_IP_TYPE?.toLowerCase() || '') ? env.CDDS_IP_TYPE!.toLowerCase() as any : 'ipv4',
 			proxied: env.CDDS_PROXIED === 'true'
 		};
 	} catch (e) {
@@ -161,8 +161,9 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	interval = await textPrompt('Check interval in minutes:', interval);
 	ipType = await selectPrompt('IP Type to update:', [
 		{ label: 'IPv4 (A)', value: 'ipv4' },
-		{ label: 'IPv6 (AAAA)', value: 'ipv6' }
-	], ipType === 'ipv6' ? 1 : 0);
+		{ label: 'IPv6 (AAAA)', value: 'ipv6' },
+		{ label: 'Both (A + AAAA)', value: 'both' }
+	], ipType === 'both' ? 2 : (ipType === 'ipv6' ? 1 : 0)) as any;
 
 	proxied = await selectPrompt('Enable Cloudflare Proxy (Orange Cloud)?', [
 		{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }

@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [1.4.0] - 2026-08-02
+
 ### Added
+- **Dual-Stack (IPv4 + IPv6) Support** — `CDDS_IP_TYPE` can now be set to `both`. The daemon will independently detect, manage, and update both `A` and `AAAA` records simultaneously for full dual-stack compatibility.
+- **Strict IP Type Enforcement** — when `CDDS_IP_TYPE` is explicitly `ipv4` or `ipv6`, the daemon actively prevents split-DNS by deleting the opposite record type during every update cycle, even if the primary record requires no update.
 - **Reload Daemon** option in the Daemon Manager — restarts the running daemon with the latest `.env` configuration without manual stop/start
 - **Action file logging** (`CDDS_ACTION_LOGFILE`) — logs all daemon actions to `cdds-actions.log` with ISO timestamps and ANSI-stripped output
 - Emoji prefixes on all non-interactive console output for improved readability
