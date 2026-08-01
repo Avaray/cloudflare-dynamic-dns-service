@@ -33,17 +33,22 @@ const textPrompt = (question: string, defaultValue: string = ''): Promise<string
 	});
 };
 
-type SelectItem = { label: string; value: string };
+type SelectItem = { label: string; value: string; disabled?: boolean };
 const selectPrompt = (question: string, items: SelectItem[], defaultIndex: number = 0): Promise<string> => {
 	return new Promise((resolve) => {
-		let selectedIndex = defaultIndex;
+		// If the default index lands on a disabled item, find the first enabled one
+		const firstEnabled = items.findIndex((item) => !item.disabled);
+		let selectedIndex = items[defaultIndex]?.disabled ? (firstEnabled >= 0 ? firstEnabled : 0) : defaultIndex;
 		let rl: readline.Interface | null = null;
 		
 		const renderMenu = () => {
 			process.stdout.write('\x1B[2J\x1B[0;0H'); // Clear and move to top
 			console.log(`\x1b[36m\x1b[1m${question}\x1b[0m\n`);
 			items.forEach((item, index) => {
-				if (index === selectedIndex) {
+				if (item.disabled) {
+					// Dimmed/dark gray — visually unavailable
+					console.log(`  \x1b[2m\x1b[90m${item.label}\x1b[0m`);
+				} else if (index === selectedIndex) {
 					console.log(`\x1b[32m❯ ${item.label}\x1b[0m`);
 				} else {
 					console.log(`  ${item.label}`);
@@ -52,15 +57,26 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 			console.log('\n(Use ↑/↓ arrows to navigate, Enter to select)');
 		};
 
+		const moveCursor = (direction: 1 | -1) => {
+			let next = selectedIndex;
+			const len = items.length;
+			for (let i = 1; i <= len; i++) {
+				const candidate = (selectedIndex + direction * i + len) % len;
+				if (!items[candidate].disabled) { next = candidate; break; }
+			}
+			selectedIndex = next;
+		};
+
 		const onKeyPress = (str: string, key: any) => {
 			if (!key) return;
 			if (key.name === 'up') {
-				selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : items.length - 1;
+				moveCursor(-1);
 				renderMenu();
 			} else if (key.name === 'down') {
-				selectedIndex = selectedIndex < items.length - 1 ? selectedIndex + 1 : 0;
+				moveCursor(1);
 				renderMenu();
 			} else if (key.name === 'return' || key.name === 'enter') {
+				if (items[selectedIndex].disabled) return; // safety guard
 				cleanup();
 				resolve(items[selectedIndex].value);
 			} else if (key.ctrl && key.name === 'c') {
@@ -85,11 +101,11 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 			// Fallback if not TTY
 			rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 			console.log(question);
-			items.forEach((item, i) => console.log(`${i + 1}. ${item.label}`));
+			items.forEach((item, i) => console.log(`${i + 1}. ${item.label}${item.disabled ? ' (unavailable)' : ''}`));
 			rl.question('Select option number: ', (answer) => {
 				const idx = parseInt(answer, 10) - 1;
 				cleanup();
-				resolve(items[idx] ? items[idx].value : items[0].value);
+				resolve(items[idx] && !items[idx].disabled ? items[idx].value : items[firstEnabled >= 0 ? firstEnabled : 0].value);
 			});
 			return;
 		}
@@ -101,6 +117,18 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 const pausePrompt = async (ms: number = 1500) => {
 	return new Promise<void>((resolve) => setTimeout(resolve, ms));
 };
+
+// Check if the current process has Windows Administrator privileges
+const isAdmin = (): boolean => {
+	if (!isWindows) return false;
+	try {
+		execSync('net session', { stdio: 'ignore' });
+		return true;
+	} catch {
+		return false;
+	}
+};
+const _isAdmin = isWindows ? isAdmin() : false;
 
 // ... parsing logic
 const parseEnv = async (): Promise<CloudflareConfig | null> => {
@@ -647,7 +675,7 @@ Usage:
 				{ label: existingConfig ? 'Edit existing .env Configuration' : 'Run .env Configuration Wizard', value: 'env' },
 				{ label: 'Manage Daemon (built-in)', value: 'daemon' },
 				...(systemdAvailable ? [{ label: 'Manage Systemd Service', value: 'systemd' }] : []),
-				...(isWindows ? [{ label: 'Manage Windows Task Scheduler', value: 'taskscheduler' }] : []),
+				...(isWindows ? [{ label: `Manage Windows Task Scheduler${!_isAdmin ? ' (requires Administrator)' : ''}`, value: 'taskscheduler', disabled: !_isAdmin }] : []),
 				...(pm2Available ? [{ label: 'Manage PM2 Service', value: 'pm2' }] : []),
 				{ label: 'Exit', value: 'exit' }
 			];
@@ -661,7 +689,7 @@ Usage:
 		} else if (view === 'install_prompt') {
 			const action = await selectPrompt('Which service manager would you like to use?', [
 				...(systemdAvailable ? [{ label: 'Systemd (Debian/Ubuntu, requires root)', value: 'systemd' }] : []),
-				...(isWindows ? [{ label: 'Windows Task Scheduler (requires Administrator)', value: 'taskscheduler' }] : []),
+				...(isWindows ? [{ label: `Windows Task Scheduler${!_isAdmin ? ' (requires Administrator)' : ''}`, value: 'taskscheduler', disabled: !_isAdmin }] : []),
 				...(pm2Available ? [{ label: 'PM2 (detected in PATH)', value: 'pm2' }] : []),
 				{ label: 'Nevermind, return to main menu', value: 'menu' }
 			]);
