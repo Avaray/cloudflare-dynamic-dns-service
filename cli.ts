@@ -46,8 +46,8 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 			console.log(`\x1b[36m\x1b[1m${question}\x1b[0m\n`);
 			items.forEach((item, index) => {
 				if (item.disabled) {
-					// Dimmed/dark gray — visually unavailable
-					console.log(`  \x1b[2m\x1b[90m${item.label}\x1b[0m`);
+					// Dark gray — visually unavailable but readable
+					console.log(`  \x1b[90m${item.label}\x1b[0m`);
 				} else if (index === selectedIndex) {
 					console.log(`\x1b[32m❯ ${item.label}\x1b[0m`);
 				} else {
