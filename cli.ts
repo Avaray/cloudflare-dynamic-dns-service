@@ -259,7 +259,7 @@ const isWindowsAdmin = (): boolean => {
 	try { execSync('net session', { stdio: 'ignore' }); return true; } catch { return false; }
 };
 
-const TASK_NAME = 'CDDS-DynamicDNS';
+const TASK_NAME = 'Cloudflare-Dynamic-DNS-Service';
 
 const runSystemdManager = async () => {
 	const isRoot = process.getuid ? process.getuid() === 0 : false;
