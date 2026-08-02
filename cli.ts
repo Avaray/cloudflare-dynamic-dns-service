@@ -422,8 +422,8 @@ const runTaskSchedulerManager = async () => {
 		const items = [
 			...(notInstalled ? [{ label: 'Install / Enable at Boot', value: 'install' }] : []),
 			...(!notInstalled ? [{ label: 'Reload Daemon (use latest .env)', value: 'reload' }] : []),
-			...(!notInstalled ? [{ label: 'Stop & Disable', value: 'pause', disabled: taskStatus === 'Disabled' }] : []),
-			...(!notInstalled ? [{ label: 'Enable & Run Now', value: 'resume', disabled: taskStatus === 'Running' }] : []),
+			...(!notInstalled && taskStatus !== 'Disabled' ? [{ label: 'Stop & Disable', value: 'pause' }] : []),
+			...(!notInstalled && taskStatus !== 'Running' ? [{ label: 'Enable & Run Now', value: 'resume' }] : []),
 			...(!notInstalled ? [{ label: 'Uninstall / Remove', value: 'remove' }] : []),
 			{ label: 'Refresh Status', value: 'refresh' },
 			{ label: 'Go Back', value: 'back' },
