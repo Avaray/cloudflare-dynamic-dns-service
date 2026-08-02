@@ -138,13 +138,18 @@ const parseEnv = async (): Promise<CloudflareConfig | null> => {
 		const text = await fsPromises.readFile(envPath, 'utf8');
 		const lines = text.split('\n');
 		const env: Record<string, string> = {};
+		let hasCddsKey = false;
 		for (const line of lines) {
 			const [key, ...rest] = line.split('=');
 			if (key && rest.length > 0) {
-				env[key.trim()] = rest.join('=').trim();
+				const trimmedKey = key.trim();
+				if (trimmedKey.startsWith('CDDS_')) hasCddsKey = true;
+				env[trimmedKey] = rest.join('=').trim();
 			}
 		}
 		
+		if (!hasCddsKey) return null; // Ignore .env files that don't belong to CDDS
+
 		const apiKey = env.CDDS_API_KEY || '';
 		return {
 			apiKey,
@@ -218,7 +223,18 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 		ipLogFile = 'false';
 	}
 
-	let envContent = `CDDS_API_KEY=${apiKey}\n`;
+	let existingLines: string[] = [];
+	try {
+		const text = await fsPromises.readFile(process.cwd() + '/.env', 'utf8');
+		existingLines = text.split(/\r?\n/).filter(line => !line.trim().startsWith('CDDS_'));
+		// Remove trailing empty lines to prevent newline accumulation
+		while (existingLines.length > 0 && existingLines[existingLines.length - 1].trim() === '') {
+			existingLines.pop();
+		}
+	} catch { }
+
+	let envContent = existingLines.length > 0 ? existingLines.join('\n') + '\n\n' : '';
+	envContent += `CDDS_API_KEY=${apiKey}\n`;
 	if (email) envContent += `CDDS_EMAIL=${email}\n`;
 	envContent += `CDDS_TARGETS=${targets}\n`;
 	if (zoneId) envContent += `CDDS_ZONE_ID=${zoneId}\n`;
