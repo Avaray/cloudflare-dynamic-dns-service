@@ -421,6 +421,7 @@ const runTaskSchedulerManager = async () => {
 		const notInstalled = taskStatus === 'Not Installed';
 		const items = [
 			...(notInstalled ? [{ label: 'Install / Enable at Boot', value: 'install' }] : []),
+			...(!notInstalled ? [{ label: 'Reload Daemon (use latest .env)', value: 'reload' }] : []),
 			...(!notInstalled ? [{ label: 'Stop & Disable', value: 'pause', disabled: taskStatus === 'Disabled' }] : []),
 			...(!notInstalled ? [{ label: 'Enable & Run Now', value: 'resume', disabled: taskStatus === 'Running' }] : []),
 			...(!notInstalled ? [{ label: 'Uninstall / Remove', value: 'remove' }] : []),
@@ -511,6 +512,12 @@ const runTaskSchedulerManager = async () => {
 				execSync(`schtasks /run /tn "${TASK_NAME}"`);
 				console.log('\x1b[32mSUCCESS: Task re-enabled and running.\x1b[0m');
 				logMessage('TaskScheduler: Resumed CDDS-DynamicDNS task');
+			} else if (action === 'reload') {
+				execSync(`schtasks /change /tn "${TASK_NAME}" /enable`);
+				try { execSync(`schtasks /end /tn "${TASK_NAME}"`); } catch { }
+				execSync(`schtasks /run /tn "${TASK_NAME}"`);
+				console.log('\x1b[32mSUCCESS: Task reloaded successfully with latest config.\x1b[0m');
+				logMessage('TaskScheduler: Reloaded CDDS-DynamicDNS task');
 			} else if (action === 'remove') {
 				try { execSync(`schtasks /end /tn "${TASK_NAME}"`); } catch { }
 				execSync(`schtasks /delete /tn "${TASK_NAME}" /f`);
