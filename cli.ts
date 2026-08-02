@@ -459,8 +459,10 @@ const runTaskSchedulerManager = async () => {
     <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
     <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
     <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
-    <RestartInterval>PT1M</RestartInterval>
-    <RestartCount>3</RestartCount>
+    <RestartOnFailure>
+      <Interval>PT1M</Interval>
+      <Count>3</Count>
+    </RestartOnFailure>
     <Enabled>true</Enabled>
   </Settings>
   <Actions Context="Author">
@@ -553,6 +555,7 @@ const runDaemonManager = async () => {
 					detached: true,
 					stdio: ['ignore', 'ignore', 'ignore'],
 					env: { ...process.env },
+					windowsHide: true,
 				});
 				await fsPromises.writeFile(PID_FILE, child.pid?.toString() || '', "utf8");
 				child.unref();
@@ -581,6 +584,7 @@ const runDaemonManager = async () => {
 					detached: true,
 					stdio: ['ignore', 'ignore', 'ignore'],
 					env: { ...process.env },
+					windowsHide: true,
 				});
 				await fsPromises.writeFile(PID_FILE, child.pid?.toString() || '', "utf8");
 				child.unref();
@@ -637,6 +641,7 @@ const main = async () => {
 			detached: true,
 			stdio: ['ignore', 'ignore', 'ignore'],
 			env: { ...process.env },
+			windowsHide: true,
 		});
 
 		const pid = child.pid;
