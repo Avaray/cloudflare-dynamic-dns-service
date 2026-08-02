@@ -551,16 +551,26 @@ const runDaemonManager = async () => {
 
 				const bunExec = process.execPath;
 				const scriptPath = import.meta.url ? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') : process.argv[1];
-				const child = spawn(bunExec, [scriptPath, 'start'], {
-					detached: true,
-					stdio: ['ignore', 'ignore', 'ignore'],
-					env: { ...process.env },
-					windowsHide: true,
-				});
-				await fsPromises.writeFile(PID_FILE, child.pid?.toString() || '', "utf8");
-				child.unref();
-				logMessage(`Daemon: Started (PID: ${child.pid})`);
-				console.log(`\x1b[32mSUCCESS: Daemon started! (PID: ${child.pid})\x1b[0m`);
+				
+				let childPid: number;
+				if (isWindows) {
+					// Use PowerShell to completely detach and hide the window on Windows, avoiding Windows Terminal tab switching
+					const psCmd = `(Start-Process -FilePath '${bunExec}' -ArgumentList '"${scriptPath}"', 'start' -WindowStyle Hidden -PassThru).Id`;
+					const out = execSync(`powershell -NoProfile -Command "${psCmd}"`, { encoding: 'utf8' });
+					childPid = parseInt(out.trim(), 10);
+				} else {
+					const child = spawn(bunExec, [scriptPath, 'start'], {
+						detached: true,
+						stdio: ['ignore', 'ignore', 'ignore'],
+						env: { ...process.env },
+					});
+					child.unref();
+					childPid = child.pid!;
+				}
+				
+				await fsPromises.writeFile(PID_FILE, childPid.toString(), "utf8");
+				logMessage(`Daemon: Started (PID: ${childPid})`);
+				console.log(`\x1b[32mSUCCESS: Daemon started! (PID: ${childPid})\x1b[0m`);
 			} else if (action === 'stop') {
 				if (!running || !pid) throw new Error('Daemon is not running.');
 				process.kill(pid, 'SIGTERM');
@@ -580,16 +590,25 @@ const runDaemonManager = async () => {
 				// Start fresh with latest config
 				const bunExec = process.execPath;
 				const scriptPath = import.meta.url ? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') : process.argv[1];
-				const child = spawn(bunExec, [scriptPath, 'start'], {
-					detached: true,
-					stdio: ['ignore', 'ignore', 'ignore'],
-					env: { ...process.env },
-					windowsHide: true,
-				});
-				await fsPromises.writeFile(PID_FILE, child.pid?.toString() || '', "utf8");
-				child.unref();
-				logMessage(`Daemon: Reloaded (old PID: ${pid}, new PID: ${child.pid})`);
-				console.log(`\x1b[32mSUCCESS: Daemon reloaded! (old PID: ${pid} → new PID: ${child.pid})\x1b[0m`);
+				
+				let childPid: number;
+				if (isWindows) {
+					const psCmd = `(Start-Process -FilePath '${bunExec}' -ArgumentList '"${scriptPath}"', 'start' -WindowStyle Hidden -PassThru).Id`;
+					const out = execSync(`powershell -NoProfile -Command "${psCmd}"`, { encoding: 'utf8' });
+					childPid = parseInt(out.trim(), 10);
+				} else {
+					const child = spawn(bunExec, [scriptPath, 'start'], {
+						detached: true,
+						stdio: ['ignore', 'ignore', 'ignore'],
+						env: { ...process.env },
+					});
+					child.unref();
+					childPid = child.pid!;
+				}
+				
+				await fsPromises.writeFile(PID_FILE, childPid.toString(), "utf8");
+				logMessage(`Daemon: Reloaded (old PID: ${pid}, new PID: ${childPid})`);
+				console.log(`\x1b[32mSUCCESS: Daemon reloaded! (old PID: ${pid} → new PID: ${childPid})\x1b[0m`);
 			}
 		} catch (e: any) {
 			if (e.code === 'ESRCH') {
@@ -637,16 +656,22 @@ const main = async () => {
 		const bunExec = process.execPath;
 		const scriptPath = import.meta.url ? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') : process.argv[1];
 
-		const child = spawn(bunExec, [scriptPath, 'start'], {
-			detached: true,
-			stdio: ['ignore', 'ignore', 'ignore'],
-			env: { ...process.env },
-			windowsHide: true,
-		});
+		let pid: number;
+		if (isWindows) {
+			const psCmd = `(Start-Process -FilePath '${bunExec}' -ArgumentList '"${scriptPath}"', 'start' -WindowStyle Hidden -PassThru).Id`;
+			const out = execSync(`powershell -NoProfile -Command "${psCmd}"`, { encoding: 'utf8' });
+			pid = parseInt(out.trim(), 10);
+		} else {
+			const child = spawn(bunExec, [scriptPath, 'start'], {
+				detached: true,
+				stdio: ['ignore', 'ignore', 'ignore'],
+				env: { ...process.env },
+			});
+			child.unref();
+			pid = child.pid!;
+		}
 
-		const pid = child.pid;
-		await fsPromises.writeFile(PID_FILE, pid?.toString() || '', "utf8");
-		child.unref();
+		await fsPromises.writeFile(PID_FILE, pid.toString(), "utf8");
 
 		console.log(`CDDS daemon started in background (PID: ${pid})`);
 		console.log(`PID saved to: ${PID_FILE}`);
