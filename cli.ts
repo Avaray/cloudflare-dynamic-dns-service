@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 import process from 'process';
-import { execSync, spawn } from 'child_process';
+import { execSync as nodeExecSync, spawn } from 'child_process';
 import { promises as fsPromises } from 'node:fs';
 import { appendFileSync, writeFileSync, unlinkSync } from 'fs';
 import { resolve, dirname } from 'path';
+
+const execSync = (cmd: string, options: any = {}) => {
+	return nodeExecSync(cmd, { windowsHide: true, ...options });
+};
 import * as readline from 'readline';
 
 import datr from 'datr';
