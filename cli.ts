@@ -363,60 +363,118 @@ WantedBy=multi-user.target
 };
 
 const runPM2Manager = async () => {
+	const PM2_SERVICE_NAME = 'Cloudflare-Dynamic-DNS-Service';
+
+	// Query PM2 for all CDDS-related processes via jlist (JSON, most reliable)
+	interface PM2Process { name: string; pm_id: number; pm2_env: { status: string } }
+	const getPM2Processes = (): PM2Process[] => {
+		try {
+			const raw = execSync('pm2 jlist', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
+			const list: PM2Process[] = JSON.parse(raw);
+			return list.filter(p =>
+				p.name === PM2_SERVICE_NAME ||
+				p.name === 'cloudflare-ddns' ||
+				p.name?.toLowerCase().includes('cloudflare-dynamic') ||
+				p.name?.toLowerCase().includes('cloudflare-ddns')
+			);
+		} catch (e: any) {
+			if (e.message?.includes('EPERM') || e.stderr?.includes('EPERM')) {
+				throw new Error('EPERM: Cannot connect to PM2 daemon.\n\nThe PM2 daemon was started by a different process or user.\nRun \x1b[33mpm2 kill\x1b[0m in your terminal and try again.');
+			}
+			return [];
+		}
+	};
+
 	while (true) {
-		const action = await selectPrompt('--- PM2 MANAGER ---', [
-			{ label: 'Install / Start Service', value: 'install' },
-			{ label: 'Stop (Pause) Service', value: 'pause' },
-			{ label: 'Uninstall / Remove Service', value: 'remove' },
-			{ label: 'Go Back', value: 'back' }
-		]);
+		let cddsProcesses: PM2Process[] = [];
+		let pm2Error = '';
+
+		try {
+			cddsProcesses = getPM2Processes();
+		} catch (e: any) {
+			pm2Error = `\x1b[31m${e.message}\x1b[0m\n`;
+		}
+
+		// Build pm2 warnings (multiple processes with same role)
+		let pm2Warnings = '';
+		if (cddsProcesses.length > 1) {
+			pm2Warnings = `\x1b[33m[!] Found ${cddsProcesses.length} CDDS processes in PM2:\x1b[0m\n`;
+			pm2Warnings += cddsProcesses.map(p => `    [${p.pm_id}] ${p.name}  (${p.pm2_env.status})`).join('\n') + '\n';
+		}
+
+		// Determine primary process (prefer PM2_SERVICE_NAME, fallback to first found)
+		const primary = cddsProcesses.find(p => p.name === PM2_SERVICE_NAME) ?? cddsProcesses[0] ?? null;
+		const isOnline = primary?.pm2_env.status === 'online';
+		const isStopped = primary && !isOnline;
+		const notInstalled = !primary;
+
+		// Status label
+		let statusLabel: string;
+		if (pm2Error) {
+			statusLabel = '\x1b[31mError (cannot connect to PM2 daemon)\x1b[0m';
+		} else if (notInstalled) {
+			statusLabel = '\x1b[31mNot Installed\x1b[0m';
+		} else {
+			const statusColor = isOnline ? '\x1b[32m' : '\x1b[33m';
+			statusLabel = `${statusColor}${primary!.pm2_env.status}\x1b[0m  [ID: ${primary!.pm_id}, Name: ${primary!.name}]`;
+		}
+
+		const items: { label: string; value: string; disabled?: boolean }[] = [
+			...(notInstalled && !pm2Error ? [{ label: 'Install & Start Service', value: 'install' }] : []),
+			...(!notInstalled && isOnline ? [{ label: 'Reload (restart with latest config)', value: 'reload' }] : []),
+			...(!notInstalled && isOnline ? [{ label: 'Stop Service', value: 'pause' }] : []),
+			...(!notInstalled && isStopped ? [{ label: 'Start Service', value: 'resume' }] : []),
+			...(!notInstalled ? [{ label: 'Uninstall / Remove Service', value: 'remove' }] : []),
+			{ label: 'Refresh Status', value: 'refresh' },
+			{ label: 'Go Back', value: 'back' },
+		];
+
+		const action = await selectPrompt(
+			`--- PM2 SERVICE MANAGER ---\n${pm2Error}${pm2Warnings}Status: ${statusLabel}`,
+			items
+		);
 
 		if (action === 'back') break;
+		if (action === 'refresh') continue;
 
 		try {
 			const cfg = await parseEnv();
 			if (!cfg) throw new Error("No .env file found. Please run the configuration wizard first.");
 			validateConfig(cfg);
 
+			const targetName = primary?.name ?? PM2_SERVICE_NAME;
+
 			if (action === 'install') {
-				const serviceName = 'Cloudflare-Dynamic-DNS-Service';
-				const pm2Content = `module.exports = {
-  apps: [
-    {
-      name: "${serviceName}",
-      script: "cdds",
-      args: "start",
-      interpreter: "none",
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      cwd: "${getLogDir().replace(/\\/g, '/')}",
-      max_memory_restart: "100M",
-      env: {
-        NODE_ENV: "production",
-      },
-    },
-  ],
-};
-`;
+				const pm2Content = `module.exports = {\n  apps: [\n    {\n      name: "${PM2_SERVICE_NAME}",\n      script: "cdds",\n      args: "start",\n      interpreter: "none",\n      instances: 1,\n      autorestart: true,\n      watch: false,\n      cwd: "${getLogDir().replace(/\\/g, '/')}",\n      max_memory_restart: "100M",\n      env: { NODE_ENV: "production" },\n    },\n  ],\n};\n`;
 				const pm2ConfigPath = resolve(getLogDir(), 'pm2.config.cjs');
 				await fsPromises.writeFile(pm2ConfigPath, pm2Content, "utf8");
 				execSync(`pm2 start "${pm2ConfigPath}"`);
 				execSync('pm2 save');
 				console.log('\x1b[32mSUCCESS: PM2 Service installed and started successfully!\x1b[0m');
-				logMessage(`PM2: Installed and started ${serviceName}`);
+				logMessage(`PM2: Installed and started ${PM2_SERVICE_NAME}`);
+			} else if (action === 'reload') {
+				execSync(`pm2 restart "${targetName}"`);
+				console.log('\x1b[32mSUCCESS: PM2 Service restarted with latest config.\x1b[0m');
+				logMessage(`PM2: Reloaded ${targetName}`);
 			} else if (action === 'pause') {
-				execSync('pm2 stop Cloudflare-Dynamic-DNS-Service');
-				console.log('\x1b[32mSUCCESS: PM2 Service stopped (paused).\x1b[0m');
-				logMessage('PM2: Stopped Cloudflare-Dynamic-DNS-Service');
+				execSync(`pm2 stop "${targetName}"`);
+				console.log('\x1b[32mSUCCESS: PM2 Service stopped.\x1b[0m');
+				logMessage(`PM2: Stopped ${targetName}`);
+			} else if (action === 'resume') {
+				execSync(`pm2 start "${targetName}"`);
+				console.log('\x1b[32mSUCCESS: PM2 Service started.\x1b[0m');
+				logMessage(`PM2: Started ${targetName}`);
 			} else if (action === 'remove') {
-				execSync('pm2 delete Cloudflare-Dynamic-DNS-Service');
+				execSync(`pm2 delete "${targetName}"`);
 				execSync('pm2 save');
-				console.log('\x1b[32mSUCCESS: PM2 Service completely removed.\x1b[0m');
-				logMessage('PM2: Removed Cloudflare-Dynamic-DNS-Service');
+				console.log('\x1b[32mSUCCESS: PM2 Service removed.\x1b[0m');
+				logMessage(`PM2: Removed ${targetName}`);
 			}
 		} catch (e: any) {
-			console.log(`\x1b[31mERROR: ${e.message}\x1b[0m`);
+			const hint = (e.message?.includes('EPERM') || e.stderr?.includes?.('EPERM'))
+				? '\n\x1b[33mHint: Run \x1b[1mpm2 kill\x1b[0m\x1b[33m in your terminal to reset the PM2 daemon, then retry.\x1b[0m'
+				: '';
+			console.log(`\x1b[31mERROR: ${e.message}\x1b[0m${hint}`);
 		}
 		await pausePrompt();
 	}
