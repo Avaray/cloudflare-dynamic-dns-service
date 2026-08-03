@@ -449,7 +449,10 @@ const runPM2Manager = async () => {
 			const targetName = primary?.name ?? PM2_SERVICE_NAME;
 
 			if (action === 'install') {
-				const pm2Content = `module.exports = {\n  apps: [\n    {\n      name: "${PM2_SERVICE_NAME}",\n      script: "cdds",\n      args: "start",\n      interpreter: "none",\n      instances: 1,\n      autorestart: true,\n      watch: false,\n      cwd: "${getLogDir().replace(/\\/g, '/')}",\n      max_memory_restart: "100M",\n      env: { NODE_ENV: "production" },\n    },\n  ],\n};\n`;
+				const bunExec = process.execPath;
+				const scriptPath = import.meta.url ? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') : process.argv[1];
+
+				const pm2Content = `module.exports = {\n  apps: [\n    {\n      name: "${PM2_SERVICE_NAME}",\n      script: "${scriptPath.replace(/\\/g, '/')}",\n      args: "start",\n      interpreter: "${bunExec.replace(/\\/g, '/')}",\n      instances: 1,\n      autorestart: true,\n      watch: false,\n      cwd: "${getLogDir().replace(/\\/g, '/')}",\n      max_memory_restart: "100M",\n      env: { NODE_ENV: "production" },\n    },\n  ],\n};\n`;
 				const pm2ConfigPath = resolve(getLogDir(), 'pm2.config.cjs');
 				await fsPromises.writeFile(pm2ConfigPath, pm2Content, "utf8");
 				execSync(`pm2 start "${pm2ConfigPath}"`);
@@ -457,8 +460,14 @@ const runPM2Manager = async () => {
 				console.log('\x1b[32mSUCCESS: PM2 Service installed and started successfully!\x1b[0m');
 				logMessage(`PM2: Installed and started ${PM2_SERVICE_NAME}`);
 			} else if (action === 'reload') {
-				execSync(`pm2 restart "${targetName}"`);
-				console.log('\x1b[32mSUCCESS: PM2 Service restarted with latest config.\x1b[0m');
+				const bunExec = process.execPath;
+				const scriptPath = import.meta.url ? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') : process.argv[1];
+				const pm2Content = `module.exports = {\n  apps: [\n    {\n      name: "${targetName}",\n      script: "${scriptPath.replace(/\\/g, '/')}",\n      args: "start",\n      interpreter: "${bunExec.replace(/\\/g, '/')}",\n      instances: 1,\n      autorestart: true,\n      watch: false,\n      cwd: "${getLogDir().replace(/\\/g, '/')}",\n      max_memory_restart: "100M",\n      env: { NODE_ENV: "production" },\n    },\n  ],\n};\n`;
+				const pm2ConfigPath = resolve(getLogDir(), 'pm2.config.cjs');
+				await fsPromises.writeFile(pm2ConfigPath, pm2Content, "utf8");
+				execSync(`pm2 start "${pm2ConfigPath}"`);
+				execSync('pm2 save');
+				console.log('\x1b[32mSUCCESS: PM2 Service restarted and updated with latest config.\x1b[0m');
 				logMessage(`PM2: Reloaded ${targetName}`);
 			} else if (action === 'pause') {
 				execSync(`pm2 stop "${targetName}"`);
