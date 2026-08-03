@@ -2,11 +2,14 @@ import gip from "gip";
 import datr from "datr";
 import { promises as fs, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
+
+const getEnvPath = () => process.env.CDDS_ENV_PATH ? resolve(process.env.CDDS_ENV_PATH) : resolve(process.cwd(), '.env');
+const getLogDir = () => dirname(getEnvPath());
 
 // Load .env file from current working directory (cross-runtime, no external deps)
 try {
-  const envPath = resolve(process.cwd(), '.env');
+  const envPath = getEnvPath();
   const envContent = readFileSync(envPath, 'utf8');
   for (const line of envContent.split('\n')) {
     const trimmed = line.trim();
@@ -100,9 +103,9 @@ class CloudflareDDNS {
 
     try {
       if (this.config.ipLogFile === true) {
-        this.ipLogPath = "cdds.log";
+        this.ipLogPath = resolve(getLogDir(), "cdds-ip.log");
       } else if (typeof this.config.ipLogFile === "string") {
-        this.ipLogPath = this.config.ipLogFile;
+        this.ipLogPath = resolve(getLogDir(), this.config.ipLogFile);
       }
     } catch (error) {
       if (this.config.logs) {
@@ -1003,7 +1006,7 @@ export async function startDaemon() {
       const { appendFileSync } = await import("node:fs");
       const { resolve } = await import("node:path");
       
-      const actionLogPath = resolve(process.cwd(), "cdds-actions.log");
+      const actionLogPath = resolve(getLogDir(), "cdds-actions.log");
       
       const origLog = console.log;
       const origError = console.error;

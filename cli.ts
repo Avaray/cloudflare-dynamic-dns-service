@@ -3,19 +3,24 @@ import process from 'process';
 import { execSync, spawn } from 'child_process';
 import { promises as fsPromises } from 'node:fs';
 import { appendFileSync, writeFileSync, unlinkSync } from 'fs';
+import { resolve, dirname } from 'path';
 import * as readline from 'readline';
 
 import datr from 'datr';
 import { startDaemon, validateConfig, type CloudflareConfig, detectApiKeyType } from './main.ts';
 
 const isWindows = process.platform === 'win32';
-const PID_FILE = process.cwd() + '/cdds.pid';
+
+const getEnvPath = () => process.env.CDDS_ENV_PATH ? resolve(process.env.CDDS_ENV_PATH) : resolve(process.cwd(), '.env');
+const getLogDir = () => dirname(getEnvPath());
+
+const PID_FILE = resolve(getLogDir(), 'cdds.pid');
 
 const fileExists = async (path: string) => { try { await fsPromises.access(path); return true; } catch { return false; } };
 
 const logMessage = (msg: string) => {
 	const line = `[${datr({ precision: 'ms', separator: '-' })}] ${msg}\n`;
-	try { appendFileSync(process.cwd() + '/cli-manager.log', line); } catch (e) {}
+	try { appendFileSync(resolve(getLogDir(), 'cli-manager.log'), line); } catch (e) {}
 };
 
 // Console UI Helpers (Zero Dependencies)
@@ -133,7 +138,7 @@ const _isAdmin = isWindows ? isAdmin() : false;
 // ... parsing logic
 const parseEnv = async (): Promise<CloudflareConfig | null> => {
 	try {
-		const envPath = process.cwd() + '/.env';
+		const envPath = getEnvPath();
 		if (!(await fileExists(envPath))) return null;
 		const text = await fsPromises.readFile(envPath, 'utf8');
 		const lines = text.split('\n');
@@ -224,8 +229,9 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	}
 
 	let existingLines: string[] = [];
+	const envPath = getEnvPath();
 	try {
-		const text = await fsPromises.readFile(process.cwd() + '/.env', 'utf8');
+		const text = await fsPromises.readFile(envPath, 'utf8');
 		existingLines = text.split(/\r?\n/).filter(line => !line.trim().startsWith('CDDS_'));
 		// Remove trailing empty lines to prevent newline accumulation
 		while (existingLines.length > 0 && existingLines[existingLines.length - 1].trim() === '') {
@@ -246,7 +252,7 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	envContent += `CDDS_ACTION_LOGFILE=${actionLogFile}\n`;
 	envContent += `CDDS_IP_LOGFILE=${ipLogFile}\n`;
 
-	await fsPromises.writeFile(process.cwd() + '/.env', envContent, "utf8");
+	await fsPromises.writeFile(envPath, envContent, "utf8");
 	logMessage("Generated .env file via Wizard.");
 	
 	const action = await selectPrompt('Saved .env successfully! What do you want to do now?', [
@@ -302,8 +308,9 @@ const runSystemdManager = async () => {
 			validateConfig(cfg);
 
 			if (action === 'install') {
-				const projectPath = process.cwd();
+				const projectPath = getLogDir();
 				const bunPath = process.execPath;
+				const serviceName = 'cloudflare-dynamic-dns-service';
 				const serviceContent = `[Unit]
 Description=Cloudflare Dynamic DNS Service
 After=network.target
@@ -317,31 +324,36 @@ Restart=on-failure
 RestartSec=10
 StandardOutput=syslog
 StandardError=syslog
-SyslogIdentifier=cdds
+SyslogIdentifier=cloudflare-dynamic-dns-service
 
 [Install]
 WantedBy=multi-user.target
 `;
-				await fsPromises.writeFile('/etc/systemd/system/cdds.service', serviceContent, "utf8");
+				await fsPromises.writeFile(`/etc/systemd/system/${serviceName}.service`, serviceContent, "utf8");
 				execSync('systemctl daemon-reload');
-				execSync('systemctl enable cdds');
-				execSync('systemctl start cdds');
+				execSync(`systemctl enable ${serviceName}`);
+				execSync(`systemctl start ${serviceName}`);
 				console.log('\x1b[32mSUCCESS: Systemd Service installed and started successfully!\x1b[0m');
-				logMessage('Systemd: Installed and started cdds.service');
+				logMessage(`Systemd: Installed and started ${serviceName}.service`);
 			} else if (action === 'pause') {
-				execSync('systemctl stop cdds');
+				execSync('systemctl stop cloudflare-dynamic-dns-service');
 				console.log('\x1b[32mSUCCESS: Systemd Service stopped (paused).\x1b[0m');
-				logMessage('Systemd: Stopped cdds.service');
+				logMessage('Systemd: Stopped cloudflare-dynamic-dns-service');
+			} else if (action === 'resume') {
+				execSync('systemctl start cloudflare-dynamic-dns-service');
+				console.log('\x1b[32mSUCCESS: Systemd Service started (resumed).\x1b[0m');
+				logMessage('Systemd: Resumed cloudflare-dynamic-dns-service');
+			} else if (action === 'reload') {
+				execSync('systemctl restart cloudflare-dynamic-dns-service');
+				console.log('\x1b[32mSUCCESS: Systemd Service reloaded successfully with latest .env.\x1b[0m');
+				logMessage('Systemd: Reloaded cloudflare-dynamic-dns-service');
 			} else if (action === 'remove') {
-				try { execSync('systemctl stop cdds'); } catch (e) {}
-				try { execSync('systemctl disable cdds'); } catch (e) {}
-				try {
-					const stat = await fsPromises.stat('/etc/systemd/system/cdds.service');
-					if (stat.size > 0) execSync('rm /etc/systemd/system/cdds.service');
-				} catch {}
-				execSync('systemctl daemon-reload');
+				try { execSync('systemctl stop cloudflare-dynamic-dns-service'); } catch {}
+				try { execSync('systemctl disable cloudflare-dynamic-dns-service'); } catch {}
+				try { execSync('rm /etc/systemd/system/cloudflare-dynamic-dns-service.service'); } catch {}
+				try { execSync('systemctl daemon-reload'); } catch {}
 				console.log('\x1b[32mSUCCESS: Systemd Service completely removed.\x1b[0m');
-				logMessage('Systemd: Removed cdds.service');
+				logMessage('Systemd: Removed cloudflare-dynamic-dns-service');
 			}
 		} catch (e: any) {
 			console.log(`\x1b[31mERROR: ${e.message}\x1b[0m`);
@@ -367,16 +379,18 @@ const runPM2Manager = async () => {
 			validateConfig(cfg);
 
 			if (action === 'install') {
+				const serviceName = 'Cloudflare-Dynamic-DNS-Service';
 				const pm2Content = `module.exports = {
   apps: [
     {
-      name: "cloudflare-ddns",
+      name: "${serviceName}",
       script: "cdds",
       args: "start",
       interpreter: "none",
       instances: 1,
       autorestart: true,
       watch: false,
+      cwd: "${getLogDir().replace(/\\/g, '/')}",
       max_memory_restart: "100M",
       env: {
         NODE_ENV: "production",
@@ -385,20 +399,21 @@ const runPM2Manager = async () => {
   ],
 };
 `;
-				await fsPromises.writeFile(process.cwd() + '/pm2.config.js', pm2Content, "utf8");
-				execSync('pm2 start pm2.config.js');
+				const pm2ConfigPath = resolve(getLogDir(), 'pm2.config.js');
+				await fsPromises.writeFile(pm2ConfigPath, pm2Content, "utf8");
+				execSync(`pm2 start "${pm2ConfigPath}"`);
 				execSync('pm2 save');
 				console.log('\x1b[32mSUCCESS: PM2 Service installed and started successfully!\x1b[0m');
-				logMessage('PM2: Installed and started cloudflare-ddns');
+				logMessage(`PM2: Installed and started ${serviceName}`);
 			} else if (action === 'pause') {
-				execSync('pm2 stop cloudflare-ddns');
+				execSync('pm2 stop Cloudflare-Dynamic-DNS-Service');
 				console.log('\x1b[32mSUCCESS: PM2 Service stopped (paused).\x1b[0m');
-				logMessage('PM2: Stopped cloudflare-ddns');
+				logMessage('PM2: Stopped Cloudflare-Dynamic-DNS-Service');
 			} else if (action === 'remove') {
-				execSync('pm2 delete cloudflare-ddns');
+				execSync('pm2 delete Cloudflare-Dynamic-DNS-Service');
 				execSync('pm2 save');
 				console.log('\x1b[32mSUCCESS: PM2 Service completely removed.\x1b[0m');
-				logMessage('PM2: Removed cloudflare-ddns');
+				logMessage('PM2: Removed Cloudflare-Dynamic-DNS-Service');
 			}
 		} catch (e: any) {
 			console.log(`\x1b[31mERROR: ${e.message}\x1b[0m`);
@@ -411,13 +426,23 @@ const runTaskSchedulerManager = async () => {
 	while (true) {
 		let taskStatus = 'Unknown';
 		try {
-			const out = execSync(`schtasks /query /tn "${TASK_NAME}" /fo LIST`, { encoding: 'utf8' });
+			const out = execSync(`schtasks /query /tn "${TASK_NAME}" /fo LIST`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 			const statusMatch = out.match(/Status:\s+(.+)/i);
 			taskStatus = statusMatch ? statusMatch[1].trim() : 'Unknown';
 		} catch {
 			taskStatus = 'Not Installed';
 		}
 		
+		let tsWarnings = '';
+		try {
+			const out = execSync('schtasks /query /fo CSV /nh', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
+			const matches = out.match(/Cloudflare-Dynamic-DNS/ig) || [];
+			const expected = taskStatus !== 'Not Installed' ? 1 : 0;
+			if (matches.length > expected) {
+				tsWarnings = `\x1b[33m[!] Note: Task Scheduler has ${matches.length - expected} other CDDS task(s) installed.\x1b[0m\n`;
+			}
+		} catch {}
+
 		const notInstalled = taskStatus === 'Not Installed';
 		const items = [
 			...(notInstalled ? [{ label: 'Install / Enable at Boot', value: 'install' }] : []),
@@ -429,7 +454,7 @@ const runTaskSchedulerManager = async () => {
 			{ label: 'Go Back', value: 'back' },
 		];
 
-		const action = await selectPrompt(`--- WINDOWS TASK SCHEDULER ---\nTask Status: ${taskStatus === 'Not Installed' ? '\x1b[31m' : '\x1b[32m'}${taskStatus}\x1b[0m`, items);
+		const action = await selectPrompt(`--- WINDOWS TASK SCHEDULER ---\n${tsWarnings}Task Status: ${taskStatus === 'Not Installed' ? '\x1b[31m' : '\x1b[32m'}${taskStatus}\x1b[0m`, items);
 
 		if (action === 'back') break;
 		if (action === 'refresh') continue;
@@ -451,7 +476,7 @@ const runTaskSchedulerManager = async () => {
 					? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 					: process.argv[1]
 				).replace(/\//g, '\\');
-				const workDir = process.cwd().replace(/\//g, '\\');
+				const workDir = getLogDir().replace(/\//g, '\\');
 
 				// Build task XML — avoids all quoting/escaping issues with spaces in paths
 				const taskXml = `<?xml version="1.0" encoding="UTF-16"?>
@@ -551,17 +576,61 @@ const runDaemonManager = async () => {
 			}
 		} catch {}
 
-		const statusLabel = running ? `\x1b[32mRunning (PID: ${pid})\x1b[0m` : '\x1b[31mStopped\x1b[0m';
-		
+		// Detect other CDDS daemon processes running in the OS (with PIDs)
+		interface ExternalDaemon { pid: number; cmdLine: string; }
+		let externalDaemons: ExternalDaemon[] = [];
+		try {
+			if (isWindows) {
+				const out = execSync(
+					'wmic process where "name=\'bun.exe\' or name=\'node.exe\'" get commandline,processid /format:csv',
+					{ encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }
+				);
+				for (const line of out.split('\n')) {
+					const parts = line.trim().split(',');
+					// CSV format: Node,CommandLine,ProcessId
+					if (parts.length < 3) continue;
+					const cmdLine = parts.slice(1, -1).join(',').trim();
+					const procId = parseInt(parts[parts.length - 1].trim(), 10);
+					if (!procId || isNaN(procId)) continue;
+					const isCdds = (cmdLine.includes('main.ts') || cmdLine.includes('main.js') || cmdLine.includes('cli.ts') || cmdLine.includes('cli.js') || cmdLine.includes('cdds')) && cmdLine.includes('start');
+					if (!isCdds) continue;
+					// Skip this process itself and the locally-tracked daemon
+					if (procId === process.pid || procId === pid) continue;
+					externalDaemons.push({ pid: procId, cmdLine });
+				}
+			} else {
+				const out = execSync('ps -eo pid,args', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
+				for (const line of out.split('\n').slice(1)) {
+					const parts = line.trim().split(/\s+/);
+					const procId = parseInt(parts[0], 10);
+					const cmdLine = parts.slice(1).join(' ');
+					if (!procId || isNaN(procId)) continue;
+					const isCdds = (cmdLine.includes('main.ts') || cmdLine.includes('main.js') || cmdLine.includes('cli.ts') || cmdLine.includes('cli.js') || cmdLine.includes('cdds')) && cmdLine.includes('start');
+					if (!isCdds) continue;
+					if (procId === process.pid || procId === pid) continue;
+					externalDaemons.push({ pid: procId, cmdLine });
+				}
+			}
+		} catch {}
+
+		let daemonWarnings = '';
+		if (externalDaemons.length > 0) {
+			const list = externalDaemons.map(d => `    PID ${d.pid}  ${d.cmdLine.slice(0, 80)}${d.cmdLine.length > 80 ? '…' : ''}`).join('\n');
+			daemonWarnings = `\x1b[33m[!] Other CDDS daemon(s) detected:\n${list}\x1b[0m\n`;
+		}
+
 		const items = [
-			...(running ? [] : [{ label: 'Start Daemon (background)', value: 'start' }]),
-			...(running ? [{ label: 'Stop Daemon', value: 'stop' }] : []),
+			...(!running ? [{ label: 'Start Daemon (background)', value: 'start' }] : []),
 			...(running ? [{ label: 'Reload Daemon (restart with latest config)', value: 'reload' }] : []),
+			...(running ? [{ label: 'Stop Daemon', value: 'stop' }] : []),
+			// Dynamically add a kill option for each external daemon
+			...externalDaemons.map(d => ({ label: `\x1b[33mKill external daemon (PID: ${d.pid})\x1b[0m`, value: `kill:${d.pid}` })),
 			{ label: 'Refresh Status', value: 'refresh' },
 			{ label: 'Go Back', value: 'back' },
 		];
 
-		const action = await selectPrompt(`--- DAEMON MANAGER ---\nStatus: ${statusLabel}`, items);
+		const action = await selectPrompt(`--- DAEMON MANAGER ---\n${daemonWarnings}Daemon Status: ${running ? '\x1b[32mRunning\x1b[0m (PID: ' + pid + ')' : '\x1b[31mStopped\x1b[0m'}`, items);
+
 
 		if (action === 'back') break;
 		if (action === 'refresh') continue;
@@ -632,6 +701,28 @@ const runDaemonManager = async () => {
 				await fsPromises.writeFile(PID_FILE, childPid.toString(), "utf8");
 				logMessage(`Daemon: Reloaded (old PID: ${pid}, new PID: ${childPid})`);
 				console.log(`\x1b[32mSUCCESS: Daemon reloaded! (old PID: ${pid} → new PID: ${childPid})\x1b[0m`);
+			} else if (action.startsWith('kill:')) {
+				const targetPid = parseInt(action.split(':')[1], 10);
+				const target = externalDaemons.find(d => d.pid === targetPid);
+				if (!target) throw new Error(`Process PID ${targetPid} not found.`);
+
+				console.log(`\n\x1b[33mYou are about to kill PID ${targetPid}:\x1b[0m`);
+				console.log(`  ${target.cmdLine.slice(0, 100)}${target.cmdLine.length > 100 ? '…' : ''}\n`);
+				const confirm = await selectPrompt('Are you sure?', [
+					{ label: 'Yes, kill it (SIGTERM)', value: 'yes' },
+					{ label: 'No, cancel', value: 'no' },
+				]);
+				if (confirm === 'yes') {
+					if (isWindows) {
+						execSync(`taskkill /F /PID ${targetPid}`, { stdio: ['ignore', 'ignore', 'ignore'] });
+					} else {
+						process.kill(targetPid, 'SIGTERM');
+					}
+					logMessage(`Daemon: Killed external daemon (PID: ${targetPid})`);
+					console.log(`\x1b[32mSUCCESS: External daemon (PID: ${targetPid}) has been terminated.\x1b[0m`);
+				} else {
+					console.log('Cancelled.');
+				}
 			}
 		} catch (e: any) {
 			if (e.code === 'ESRCH') {
