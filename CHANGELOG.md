@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.0] - 2026-08-03
+
+### Added
+- **`CDDS_ENV_PATH` environment variable** — set an absolute path to a custom `.env` file; all related files (`cdds.pid`, `cdds-actions.log`, `cdds-ip.log`, `cli-manager.log`, `pm2.config.js`) are stored in the same directory as the target `.env`, decoupling state from the CLI working directory
+- **Kill external daemon from CLI** — the Built-in Daemon Manager now scans OS processes (via `wmic` on Windows, `ps` on Linux) and lists any other running CDDS daemon processes with their PIDs; a dedicated `Kill external daemon (PID: X)` menu option appears for each, with a confirmation step before sending `SIGTERM` / `taskkill /F`
+- **Isolated instance-awareness per manager** — each service manager (PM2, Systemd, Task Scheduler, Built-in Daemon) independently detects other running instances of its own type and displays a yellow warning at the top of its menu
+- **Reload Daemon** option added to the Windows Task Scheduler manager
+
+### Changed
+- **Unified service naming** across all managers:
+  - PM2: `Cloudflare-Dynamic-DNS-Service`
+  - Systemd: `cloudflare-dynamic-dns-service`
+  - Windows Task Scheduler: `Cloudflare-Dynamic-DNS-Service` (unchanged)
+- PM2 `cwd` and Systemd `WorkingDirectory` now resolve relative to `getLogDir()` instead of the CLI's `process.cwd()`
+- Task Scheduler menu options (`Stop & Disable`, `Enable & Run Now`) are now **hidden** (not dimmed) when contextually irrelevant based on task status (`Running`, `Ready`, `Disabled`)
+- Disabled item color in the select prompt softened from dim+gray to plain gray for better readability
+
+### Fixed
+- **Windows Terminal tab focus stealing** — spawning the built-in daemon in Git Bash inside Windows Terminal no longer switches the active tab; uses `Start-Process -WindowStyle Hidden` via PowerShell instead of `spawn` on Windows
+- **Task Scheduler XML schema error** (`RestartInterval` unexpected node) — corrected XML structure to wrap restart settings in `<RestartOnFailure>`
+- **Task Scheduler installation with spaces in paths** — exec path and script path are now properly quoted in the XML `<Command>` and `<Arguments>` nodes
+- **Unrelated `.env` files** — CLI now validates that a `.env` file contains at least one `CDDS_` key before treating it as a CDDS config; unrelated files are ignored and the wizard is offered instead
+- Non-CDDS environment variables in an existing `.env` are now preserved when the configuration wizard saves a new config
+
+---
+
 ## [1.4.0] - 2026-08-02
 
 ### Added
