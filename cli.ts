@@ -399,7 +399,7 @@ const runPM2Manager = async () => {
   ],
 };
 `;
-				const pm2ConfigPath = resolve(getLogDir(), 'pm2.config.js');
+				const pm2ConfigPath = resolve(getLogDir(), 'pm2.config.cjs');
 				await fsPromises.writeFile(pm2ConfigPath, pm2Content, "utf8");
 				execSync(`pm2 start "${pm2ConfigPath}"`);
 				execSync('pm2 save');
