@@ -429,6 +429,7 @@ const runPM2Manager = async () => {
 			...(!notInstalled && isOnline ? [{ label: 'Stop Service', value: 'pause' }] : []),
 			...(!notInstalled && isStopped ? [{ label: 'Start Service', value: 'resume' }] : []),
 			...(!notInstalled ? [{ label: 'Uninstall / Remove Service', value: 'remove' }] : []),
+			...(!pm2Error ? [{ label: 'Save Services (pm2 save)', value: 'save' }] : []),
 			{ label: 'Refresh Status', value: 'refresh' },
 			{ label: 'Go Back', value: 'back' },
 		];
@@ -477,6 +478,10 @@ const runPM2Manager = async () => {
 				execSync(`pm2 start "${targetName}"`);
 				console.log('\x1b[32mSUCCESS: PM2 Service started.\x1b[0m');
 				logMessage(`PM2: Started ${targetName}`);
+			} else if (action === 'save') {
+				execSync('pm2 save');
+				console.log('\x1b[32mSUCCESS: PM2 Services saved (will restore on boot if pm2 startup is configured).\x1b[0m');
+				logMessage(`PM2: Saved process list`);
 			} else if (action === 'remove') {
 				execSync(`pm2 delete "${targetName}"`);
 				execSync('pm2 save');
