@@ -909,6 +909,15 @@ const main = async () => {
 			process.exit(1);
 		}
 		return;
+	} else if (command === 'version' || command === '--version' || command === '-v') {
+		try {
+			const pkgPath = new URL('../package.json', import.meta.url);
+			const pkg = JSON.parse(await fsPromises.readFile(pkgPath, 'utf8'));
+			console.log(`v${pkg.version}`);
+		} catch (err) {
+			console.log('v1.5.0'); // Fallback if package.json is missing
+		}
+		return;
 	} else if (command === 'help' || command === '--help' || command === '-h') {
 		console.log(`
 CDDS - Cloudflare Dynamic DNS Service
@@ -919,6 +928,7 @@ Usage:
   cdds daemon       Run daemon in background (detached)
   cdds stop         Stop background daemon
   cdds status       Check if background daemon is running
+  cdds version      Show version information (-v, --version)
   cdds help         Show this help message
 `);
 		return;
