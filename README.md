@@ -5,10 +5,6 @@ A lightweight [Dynamic DNS](https://en.wikipedia.org/wiki/Dynamic_DNS) (DDNS) cl
 
 If your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) frequently changes your IP address, and you want to host services on your home network under a static domain name, **CDDS** is a tool for you. It runs efficiently in the background, checks your public [IPv4](https://en.wikipedia.org/wiki/IPv4) or [IPv6](https://en.wikipedia.org/wiki/IPv6) address, and automatically updates your Cloudflare [DNS records](https://en.wikipedia.org/wiki/Domain_Name_System) whenever your IP changes.
 
-It is slightly more complex alternative to services like
-[No-IP](http://www.noip.com/), [Dynu](http://www.dynu.com/),
-[ClouDNS](https://www.cloudns.net/), because it requires having a domain registered with Cloudflare.
-
 ## 🚀 Features
 
 - **Interactive [CLI](https://en.wikipedia.org/wiki/Command-line_interface) Setup Wizard:** Zero manual `.env` file editing. Just type `cdds` and follow terminal UI to configure everything.
