@@ -1158,7 +1158,7 @@ Usage:
 		
 		if (view === 'menu') {
 			const menuItems = [
-				{ label: existingConfig ? 'Edit existing .env Configuration' : 'Run .env Configuration Wizard', value: 'env' },
+				{ label: existingConfig ? 'Edit existing configuration' : 'Run configuration wizard', value: 'env' },
 				{ label: 'Manage Daemon (built-in)', value: 'daemon' },
 				...(systemdAvailable ? [{ label: `Manage Systemd Service${!_isRoot ? ' (requires root)' : ''}`, value: 'systemd', disabled: !_isRoot }] : []),
 				...(isMacOS ? [{ label: `Manage Launchd Service (macOS)${!_isRoot ? ' (requires root)' : ''}`, value: 'launchd', disabled: !_isRoot }] : []),
