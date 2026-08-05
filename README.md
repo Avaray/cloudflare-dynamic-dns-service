@@ -109,18 +109,16 @@ CDDS_ENV_PATH="/etc/cdds/.env" CDDS_LOGS_DIR="/var/log/cdds" cdds daemon
 | **CDDS_ENV_PATH**         | Absolute path to a custom `.env` file. All state files (`cdds.pid`, logs) will be stored in the same directory as the target `.env`.       |
 | **CDDS_LOGS_DIR**         | Absolute path to a custom directory for logs and `.pid` files. Overrides the `.env` file location for state files.                          |
 
-🞵 = required
-
 ### Example Configurations
 
 **Minimal Configuration** (using an API Token and relying on defaults):
-```env
+```sh
 CDDS_API_KEY=YOUR_CLOUDFLARE_API_TOKEN
 CDDS_TARGETS=home.yourdomain.com
 ```
 
 **Full Configuration** (with all options customized):
-```env
+```zsh
 CDDS_API_KEY=YOUR_CLOUDFLARE_GLOBAL_API_KEY
 CDDS_EMAIL=your_email@example.com
 CDDS_TARGETS=web.example.com,api.example.com
