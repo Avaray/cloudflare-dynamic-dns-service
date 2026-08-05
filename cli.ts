@@ -727,7 +727,8 @@ const runLaunchdManager = async () => {
 </dict>
 </plist>`;
 				await fsPromises.writeFile(plistPath, plistContent, 'utf8');
-				execSync(`launchctl load -w "${plistPath}"`);
+				const out = execSync(`launchctl load -w "${plistPath}" 2>&1`, { encoding: 'utf8' });
+				if (out.toLowerCase().includes('failed') || out.toLowerCase().includes('error')) throw new Error(out.trim());
 				console.log(`\x1b[32mSUCCESS: LaunchAgent installed and started!\x1b[0m`);
 				console.log(`\x1b[90mPlist: ${plistPath}\x1b[0m`);
 				logMessage(`Launchd: Installed and started ${LAUNCHD_LABEL}`);
@@ -764,20 +765,23 @@ const runLaunchdManager = async () => {
 </dict>
 </plist>`;
 				await fsPromises.writeFile(plistPath, plistContent, 'utf8');
-				try { execSync(`launchctl unload "${plistPath}"`); } catch {}
-				execSync(`launchctl load -w "${plistPath}"`);
+				try { execSync(`launchctl unload "${plistPath}" 2>/dev/null`); } catch {}
+				const out = execSync(`launchctl load -w "${plistPath}" 2>&1`, { encoding: 'utf8' });
+				if (out.toLowerCase().includes('failed') || out.toLowerCase().includes('error')) throw new Error(out.trim());
 				console.log('\x1b[32mSUCCESS: LaunchAgent reloaded with latest config.\x1b[0m');
 				logMessage(`Launchd: Reloaded ${LAUNCHD_LABEL}`);
 			} else if (action === 'stop') {
-				execSync(`launchctl unload "${plistPath}"`);
+				const out = execSync(`launchctl unload "${plistPath}" 2>&1`, { encoding: 'utf8' });
+				if (out.toLowerCase().includes('failed') || out.toLowerCase().includes('error')) throw new Error(out.trim());
 				console.log('\x1b[32mSUCCESS: LaunchAgent stopped.\x1b[0m');
 				logMessage(`Launchd: Stopped ${LAUNCHD_LABEL}`);
 			} else if (action === 'start') {
-				execSync(`launchctl load -w "${plistPath}"`);
+				const out = execSync(`launchctl load -w "${plistPath}" 2>&1`, { encoding: 'utf8' });
+				if (out.toLowerCase().includes('failed') || out.toLowerCase().includes('error')) throw new Error(out.trim());
 				console.log('\x1b[32mSUCCESS: LaunchAgent started.\x1b[0m');
 				logMessage(`Launchd: Started ${LAUNCHD_LABEL}`);
 			} else if (action === 'remove') {
-				try { execSync(`launchctl unload "${plistPath}"`); } catch {}
+				try { execSync(`launchctl unload "${plistPath}" 2>/dev/null`); } catch {}
 				try { await fsPromises.unlink(plistPath); } catch {}
 				console.log('\x1b[32mSUCCESS: LaunchAgent stopped and plist removed.\x1b[0m');
 				logMessage(`Launchd: Removed ${LAUNCHD_LABEL}`);
