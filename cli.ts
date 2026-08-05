@@ -138,6 +138,7 @@ const isAdmin = (): boolean => {
 	}
 };
 const _isAdmin = isWindows ? isAdmin() : false;
+const _isRoot = !isWindows ? (process.getuid ? process.getuid() === 0 : false) : false;
 
 // ... parsing logic
 const parseEnv = async (): Promise<CloudflareConfig | null> => {
@@ -952,7 +953,7 @@ Usage:
 			const menuItems = [
 				{ label: existingConfig ? 'Edit existing .env Configuration' : 'Run .env Configuration Wizard', value: 'env' },
 				{ label: 'Manage Daemon (built-in)', value: 'daemon' },
-				...(systemdAvailable ? [{ label: 'Manage Systemd Service', value: 'systemd' }] : []),
+				...(systemdAvailable ? [{ label: `Manage Systemd Service${!_isRoot ? ' (requires root)' : ''}`, value: 'systemd', disabled: !_isRoot }] : []),
 				...(isWindows ? [{ label: `Manage Windows Task Scheduler${!_isAdmin ? ' (requires Administrator)' : ''}`, value: 'taskscheduler', disabled: !_isAdmin }] : []),
 				...(pm2Available ? [{ label: 'Manage PM2 Service', value: 'pm2' }] : []),
 				{ label: 'Exit', value: 'exit' }
@@ -966,7 +967,7 @@ Usage:
 			view = nextAction;
 		} else if (view === 'install_prompt') {
 			const action = await selectPrompt('Which service manager would you like to use?', [
-				...(systemdAvailable ? [{ label: 'Systemd (Debian/Ubuntu, requires root)', value: 'systemd' }] : []),
+				...(systemdAvailable ? [{ label: `Systemd (Debian/Ubuntu)${!_isRoot ? ' (requires root)' : ''}`, value: 'systemd', disabled: !_isRoot }] : []),
 				...(isWindows ? [{ label: `Windows Task Scheduler${!_isAdmin ? ' (requires Administrator)' : ''}`, value: 'taskscheduler', disabled: !_isAdmin }] : []),
 				...(pm2Available ? [{ label: 'PM2 (detected in PATH)', value: 'pm2' }] : []),
 				{ label: 'Nevermind, return to main menu', value: 'menu' }
