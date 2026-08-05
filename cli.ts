@@ -568,6 +568,7 @@ const runTaskSchedulerManager = async () => {
 					: process.argv[1]
 				).replace(/\//g, '\\');
 				const workDir = getLogDir().replace(/\//g, '\\');
+				const envPath = getEnvPath().replace(/\//g, '\\');
 
 				// Build task XML — avoids all quoting/escaping issues with spaces in paths
 				const taskXml = `<?xml version="1.0" encoding="UTF-16"?>
@@ -601,7 +602,7 @@ const runTaskSchedulerManager = async () => {
   <Actions Context="Author">
     <Exec>
       <Command>${execPath}</Command>
-      <Arguments>"${scriptPath}" start</Arguments>
+      <Arguments>"${scriptPath}" start --env "${envPath}"</Arguments>
       <WorkingDirectory>${workDir}</WorkingDirectory>
     </Exec>
   </Actions>
@@ -928,6 +929,16 @@ const runDaemonManager = async () => {
 
 // --- MAIN CLI ENTRY POINT ---
 const main = async () => {
+	// Strip out --env or -e from process.argv before parsing subcommands
+	while (true) {
+		const envArgIndex = process.argv.findIndex(arg => arg === '--env' || arg === '-e');
+		if (envArgIndex !== -1 && process.argv[envArgIndex + 1]) {
+			process.argv.splice(envArgIndex, 2);
+		} else {
+			break;
+		}
+	}
+
 	const args = process.argv.slice(2);
 	const command = args[0];
 

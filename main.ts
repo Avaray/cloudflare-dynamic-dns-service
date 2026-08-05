@@ -7,6 +7,12 @@ import { resolve, dirname } from "node:path";
 const getEnvPath = () => process.env.CDDS_ENV_PATH ? resolve(process.env.CDDS_ENV_PATH) : resolve(process.cwd(), '.env');
 const getLogDir = () => dirname(getEnvPath());
 
+// Parse global --env or -e argument early to set CDDS_ENV_PATH before anything else loads
+const envArgIndex = process.argv.findIndex(arg => arg === '--env' || arg === '-e');
+if (envArgIndex !== -1 && process.argv[envArgIndex + 1]) {
+  process.env.CDDS_ENV_PATH = resolve(process.argv[envArgIndex + 1]);
+}
+
 // Load .env file from current working directory (cross-runtime, no external deps)
 try {
   const envPath = getEnvPath();
