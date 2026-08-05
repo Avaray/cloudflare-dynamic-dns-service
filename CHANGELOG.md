@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.0] - 2026-08-05
+
+### Added
+- **`cdds version` command** — display the current version; also available as `cdds -v` and `cdds --version`; reads the version dynamically from `package.json`
+- **"Save Services" option in PM2 Manager** — runs `pm2 save` under the hood, persisting the current process list so it is restored after system reboots (requires `pm2 startup` to be configured); shown whenever PM2 daemon is reachable
+
+### Fixed
+- **Console windows on Windows** — all `execSync` calls now include `windowsHide: true` via a wrapper, preventing `cmd.exe` / `conhost.exe` pop-ups when the CLI invokes system commands (e.g. `wmic`, `schtasks`, `powershell`, `pm2`)
+- **PM2 new terminal window on start/reload** — PM2 config now uses the absolute path to the Bun/Node executable as `interpreter` and the absolute path to `cli.js` as `script`, instead of the `cdds` global wrapper command; this eliminates the `.cmd` shim that caused Windows to flash a new terminal window on every PM2 spawn
+- **PM2 `module is not defined` ESM error** — renamed `pm2.config.js` to `pm2.config.cjs` to resolve the CommonJS/ESM conflict caused by `"type": "module"` in `package.json`
+- **PM2 reload now re-applies full config** — "Reload" action regenerates `pm2.config.cjs` with fresh paths and calls `pm2 start` on it, so existing installations automatically receive the absolute-path fix without needing to reinstall
+
+---
+
 ## [1.5.0] - 2026-08-03
 
 ### Added
