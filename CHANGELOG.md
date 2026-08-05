@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.1] - 2026-08-06
+
+### Changed
+- **CLI Configuration Safety:** Options to start, reload, or install services across all built-in managers (PM2, Systemd, Launchd, Task Scheduler, Native Daemon) are now automatically disabled (dimmed) if the `.env` configuration file is invalid or missing required variables.
+- **Documentation:** Clarified `.env` creation behavior in `README.md` and split configuration examples into "Minimal" and "Full" sections for better onboarding. Added a direct link to the changelog.
+
+---
+
 ## [1.8.0] - 2026-08-05
 
 ### Added
