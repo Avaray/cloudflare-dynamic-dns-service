@@ -135,5 +135,8 @@ CDDS_PROXIED=true
 CDDS_LOGS_DIR=/var/log/cdds
 ```
 
+## 📜 Changelog
+All notable changes to this project are documented in the [CHANGELOG.md](CHANGELOG.md) file.
+
 ## 📝 License
 [MIT License](LICENSE)
