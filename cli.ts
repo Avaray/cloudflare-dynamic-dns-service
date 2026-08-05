@@ -633,6 +633,162 @@ const runTaskSchedulerManager = async () => {
 	}
 };
 
+const runLaunchdManager = async () => {
+	const isMacOS = process.platform === 'darwin';
+	if (!isMacOS) return;
+
+	const LAUNCHD_LABEL = 'com.cdds.cloudflare-dynamic-dns-service';
+	// User LaunchAgent — no root required; runs under current user session
+	const plistDir = `${process.env.HOME}/.config/launchd`; // fallback
+	const userLaunchAgentsDir = `${process.env.HOME}/Library/LaunchAgents`;
+	const plistPath = `${userLaunchAgentsDir}/${LAUNCHD_LABEL}.plist`;
+
+	const getLaunchdStatus = (): string => {
+		try {
+			const out = execSync(`launchctl list ${LAUNCHD_LABEL} 2>/dev/null`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+			const pidMatch = out.match(/"PID"\s*=\s*(\d+)/);
+			if (pidMatch) return `Running (PID: ${pidMatch[1]})`;
+			const statusMatch = out.match(/"LastExitStatus"\s*=\s*(\d+)/);
+			if (statusMatch && statusMatch[1] === '0') return 'Stopped (clean exit)';
+			if (statusMatch) return `Stopped (exit code: ${statusMatch[1]})`;
+			return 'Loaded (not running)';
+		} catch {
+			return 'Not Installed';
+		}
+	};
+
+	while (true) {
+		const statusRaw = getLaunchdStatus();
+		const notInstalled = statusRaw === 'Not Installed';
+		const isRunning = statusRaw.startsWith('Running');
+		const statusColor = isRunning ? '\x1b[32m' : (notInstalled ? '\x1b[31m' : '\x1b[33m');
+
+		const items = [
+			...(notInstalled ? [{ label: 'Install & Start Service (LaunchAgent)', value: 'install' }] : []),
+			...(!notInstalled && isRunning ? [{ label: 'Reload (restart with latest config)', value: 'reload' }] : []),
+			...(!notInstalled && isRunning ? [{ label: 'Stop Service', value: 'stop' }] : []),
+			...(!notInstalled && !isRunning ? [{ label: 'Start Service', value: 'start' }] : []),
+			...(!notInstalled ? [{ label: 'Uninstall / Remove Service', value: 'remove' }] : []),
+			{ label: 'Refresh Status', value: 'refresh' },
+			{ label: 'Go Back', value: 'back' },
+		];
+
+		const action = await selectPrompt(
+			`--- LAUNCHD MANAGER (macOS LaunchAgent) ---\nService: ${LAUNCHD_LABEL}\nStatus: ${statusColor}${statusRaw}\x1b[0m`,
+			items
+		);
+
+		if (action === 'back') break;
+		if (action === 'refresh') continue;
+
+		try {
+			const cfg = await parseEnv();
+			if (!cfg) throw new Error('No .env file found. Please run the configuration wizard first.');
+			validateConfig(cfg);
+
+			const execPath = process.execPath;
+			const scriptPath = import.meta.url
+				? new URL(import.meta.url).pathname
+				: process.argv[1];
+			const workDir = getLogDir();
+			const envPath = getEnvPath();
+
+			if (action === 'install') {
+				// Ensure LaunchAgents dir exists
+				await fsPromises.mkdir(userLaunchAgentsDir, { recursive: true });
+
+				const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${LAUNCHD_LABEL}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${execPath}</string>
+    <string>${scriptPath}</string>
+    <string>start</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>${workDir}</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>CDDS_ENV_PATH</key>
+    <string>${envPath}</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>${workDir}/cdds-stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>${workDir}/cdds-stderr.log</string>
+</dict>
+</plist>`;
+				await fsPromises.writeFile(plistPath, plistContent, 'utf8');
+				execSync(`launchctl load -w "${plistPath}"`);
+				console.log(`\x1b[32mSUCCESS: LaunchAgent installed and started!\x1b[0m`);
+				console.log(`\x1b[90mPlist: ${plistPath}\x1b[0m`);
+				logMessage(`Launchd: Installed and started ${LAUNCHD_LABEL}`);
+			} else if (action === 'reload') {
+				// Regenerate plist and reload
+				await fsPromises.mkdir(userLaunchAgentsDir, { recursive: true });
+				const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${LAUNCHD_LABEL}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${execPath}</string>
+    <string>${scriptPath}</string>
+    <string>start</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>${workDir}</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>CDDS_ENV_PATH</key>
+    <string>${envPath}</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>${workDir}/cdds-stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>${workDir}/cdds-stderr.log</string>
+</dict>
+</plist>`;
+				await fsPromises.writeFile(plistPath, plistContent, 'utf8');
+				try { execSync(`launchctl unload "${plistPath}"`); } catch {}
+				execSync(`launchctl load -w "${plistPath}"`);
+				console.log('\x1b[32mSUCCESS: LaunchAgent reloaded with latest config.\x1b[0m');
+				logMessage(`Launchd: Reloaded ${LAUNCHD_LABEL}`);
+			} else if (action === 'stop') {
+				execSync(`launchctl unload "${plistPath}"`);
+				console.log('\x1b[32mSUCCESS: LaunchAgent stopped.\x1b[0m');
+				logMessage(`Launchd: Stopped ${LAUNCHD_LABEL}`);
+			} else if (action === 'start') {
+				execSync(`launchctl load -w "${plistPath}"`);
+				console.log('\x1b[32mSUCCESS: LaunchAgent started.\x1b[0m');
+				logMessage(`Launchd: Started ${LAUNCHD_LABEL}`);
+			} else if (action === 'remove') {
+				try { execSync(`launchctl unload "${plistPath}"`); } catch {}
+				try { await fsPromises.unlink(plistPath); } catch {}
+				console.log('\x1b[32mSUCCESS: LaunchAgent stopped and plist removed.\x1b[0m');
+				logMessage(`Launchd: Removed ${LAUNCHD_LABEL}`);
+			}
+		} catch (e: any) {
+			console.log(`\x1b[31mERROR: ${e.message}\x1b[0m`);
+		}
+		await pausePrompt();
+	}
+};
+
 const runDaemonManager = async () => {
 	while (true) {
 		let running = false;
@@ -945,6 +1101,7 @@ Usage:
 	
 	const pm2Available = isPM2Available();
 	const systemdAvailable = isSystemdAvailable();
+	const isMacOS = process.platform === 'darwin';
 	
 	while (true) {
 		const existingConfig = await parseEnv();
@@ -954,6 +1111,7 @@ Usage:
 				{ label: existingConfig ? 'Edit existing .env Configuration' : 'Run .env Configuration Wizard', value: 'env' },
 				{ label: 'Manage Daemon (built-in)', value: 'daemon' },
 				...(systemdAvailable ? [{ label: `Manage Systemd Service${!_isRoot ? ' (requires root)' : ''}`, value: 'systemd', disabled: !_isRoot }] : []),
+				...(isMacOS ? [{ label: 'Manage Launchd Service (macOS)', value: 'launchd' }] : []),
 				...(isWindows ? [{ label: `Manage Windows Task Scheduler${!_isAdmin ? ' (requires Administrator)' : ''}`, value: 'taskscheduler', disabled: !_isAdmin }] : []),
 				...(pm2Available ? [{ label: 'Manage PM2 Service', value: 'pm2' }] : []),
 				{ label: 'Exit', value: 'exit' }
@@ -968,6 +1126,7 @@ Usage:
 		} else if (view === 'install_prompt') {
 			const action = await selectPrompt('Which service manager would you like to use?', [
 				...(systemdAvailable ? [{ label: `Systemd (Debian/Ubuntu)${!_isRoot ? ' (requires root)' : ''}`, value: 'systemd', disabled: !_isRoot }] : []),
+				...(isMacOS ? [{ label: 'Launchd (macOS LaunchAgent)', value: 'launchd' }] : []),
 				...(isWindows ? [{ label: `Windows Task Scheduler${!_isAdmin ? ' (requires Administrator)' : ''}`, value: 'taskscheduler', disabled: !_isAdmin }] : []),
 				...(pm2Available ? [{ label: 'PM2 (detected in PATH)', value: 'pm2' }] : []),
 				{ label: 'Nevermind, return to main menu', value: 'menu' }
@@ -984,6 +1143,9 @@ Usage:
 			view = 'menu';
 		} else if (view === 'pm2') {
 			await runPM2Manager();
+			view = 'menu';
+		} else if (view === 'launchd') {
+			await runLaunchdManager();
 			view = 'menu';
 		}
 	}
