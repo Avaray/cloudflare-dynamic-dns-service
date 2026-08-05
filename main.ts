@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { resolve, dirname } from "node:path";
 
 const getEnvPath = () => process.env.CDDS_ENV_PATH ? resolve(process.env.CDDS_ENV_PATH) : resolve(process.cwd(), '.env');
-const getLogDir = () => dirname(getEnvPath());
+const getLogDir = () => process.env.CDDS_LOGS_DIR ? resolve(process.env.CDDS_LOGS_DIR) : dirname(getEnvPath());
 
 // Parse global --env or -e argument early to set CDDS_ENV_PATH before anything else loads
 const envArgIndex = process.argv.findIndex(arg => arg === '--env' || arg === '-e');

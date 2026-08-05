@@ -15,10 +15,37 @@ import { startDaemon, validateConfig, type CloudflareConfig, detectApiKeyType } 
 
 const isWindows = process.platform === 'win32';
 
-const getEnvPath = () => process.env.CDDS_ENV_PATH ? resolve(process.env.CDDS_ENV_PATH) : resolve(process.cwd(), '.env');
-const getLogDir = () => dirname(getEnvPath());
+// Early --env detection so getEnvPath works correctly before main() runs
+{
+	const idx = process.argv.findIndex(a => a === '--env' || a === '-e');
+	if (idx !== -1 && process.argv[idx + 1]) {
+		process.env.CDDS_ENV_PATH = resolve(process.argv[idx + 1]);
+	}
+}
 
-const PID_FILE = resolve(getLogDir(), 'cdds.pid');
+// Early synchronous .env read — loads CDDS_LOGS_DIR (and other vars) before any
+// module-level constants are computed, so getLogDir() returns the correct path
+// even when the user has set CDDS_LOGS_DIR inside the .env file itself.
+try {
+	const { readFileSync: _rfs } = await import('fs');
+	const _envPath = process.env.CDDS_ENV_PATH ? resolve(process.env.CDDS_ENV_PATH) : resolve(process.cwd(), '.env');
+	for (const line of _rfs(_envPath, 'utf8').split('\n')) {
+		const trimmed = line.trim();
+		if (!trimmed || trimmed.startsWith('#')) continue;
+		const eqIdx = trimmed.indexOf('=');
+		if (eqIdx === -1) continue;
+		const k = trimmed.slice(0, eqIdx).trim();
+		const v = trimmed.slice(eqIdx + 1).trim();
+		if (k && !(k in process.env)) process.env[k] = v;
+	}
+} catch {}
+
+const getEnvPath = () => process.env.CDDS_ENV_PATH ? resolve(process.env.CDDS_ENV_PATH) : resolve(process.cwd(), '.env');
+const getLogDir = () => process.env.CDDS_LOGS_DIR ? resolve(process.env.CDDS_LOGS_DIR) : dirname(getEnvPath());
+
+// Lazy getter — evaluated at call time so CDDS_LOGS_DIR is always respected
+const getPidFile = () => resolve(getLogDir(), 'cdds.pid');
+
 
 const fileExists = async (path: string) => { try { await fsPromises.access(path); return true; } catch { return false; } };
 
@@ -827,15 +854,15 @@ const runDaemonManager = async () => {
 		let pid: number | null = null;
 		
 		try {
-			if (await fileExists(PID_FILE)) {
-				const stored = parseInt(await fsPromises.readFile(PID_FILE, 'utf8'), 10);
+			if (await fileExists(getPidFile())) {
+				const stored = parseInt(await fsPromises.readFile(getPidFile(), 'utf8'), 10);
 				if (stored && !isNaN(stored)) {
 					try {
 						process.kill(stored, 0);
 						pid = stored;
 						running = true;
 					} catch {
-						await fsPromises.writeFile(PID_FILE, '', "utf8");
+						await fsPromises.writeFile(getPidFile(), '', "utf8");
 					}
 				}
 			}
@@ -880,13 +907,13 @@ const runDaemonManager = async () => {
 					childPid = child.pid!;
 				}
 				
-				await fsPromises.writeFile(PID_FILE, childPid.toString(), "utf8");
+				await fsPromises.writeFile(getPidFile(), childPid.toString(), "utf8");
 				logMessage(`Daemon: Started (PID: ${childPid})`);
 				console.log(`\x1b[32mSUCCESS: Daemon started! (PID: ${childPid})\x1b[0m`);
 			} else if (action === 'stop') {
 				if (!running || !pid) throw new Error('Daemon is not running.');
 				process.kill(pid, 'SIGTERM');
-				await fsPromises.writeFile(PID_FILE, '', "utf8");
+				await fsPromises.writeFile(getPidFile(), '', "utf8");
 				logMessage(`Daemon: Stopped (PID: ${pid})`);
 				console.log(`\x1b[32mSUCCESS: Daemon stopped (PID: ${pid}).\x1b[0m`);
 			} else if (action === 'reload') {
@@ -918,13 +945,13 @@ const runDaemonManager = async () => {
 					childPid = child.pid!;
 				}
 				
-				await fsPromises.writeFile(PID_FILE, childPid.toString(), "utf8");
+				await fsPromises.writeFile(getPidFile(), childPid.toString(), "utf8");
 				logMessage(`Daemon: Reloaded (old PID: ${pid}, new PID: ${childPid})`);
 				console.log(`\x1b[32mSUCCESS: Daemon reloaded! (old PID: ${pid} → new PID: ${childPid})\x1b[0m`);
 			}
 		} catch (e: any) {
 			if (e.code === 'ESRCH') {
-				await fsPromises.writeFile(PID_FILE, '', "utf8");
+				await fsPromises.writeFile(getPidFile(), '', "utf8");
 				console.log('\x1b[32mSUCCESS: Daemon was not running (stale PID removed).\x1b[0m');
 			} else {
 				console.log(`\x1b[31mERROR: ${e.message}\x1b[0m`);
@@ -960,7 +987,7 @@ const main = async () => {
 	} else if (command === 'daemon') {
 		const existingPid = await (async () => {
 			try {
-				if (await fileExists(PID_FILE)) return parseInt(await fsPromises.readFile(PID_FILE, 'utf8'), 10);
+				if (await fileExists(getPidFile())) return parseInt(await fsPromises.readFile(getPidFile(), 'utf8'), 10);
 			} catch { }
 			return null;
 		})();
@@ -971,7 +998,7 @@ const main = async () => {
 				console.error(`CDDS daemon is already running (PID: ${existingPid}). Use 'cdds stop' first.`);
 				process.exit(1);
 			} catch {
-				await fsPromises.writeFile(PID_FILE, '', "utf8");
+				await fsPromises.writeFile(getPidFile(), '', "utf8");
 			}
 		}
 
@@ -993,30 +1020,30 @@ const main = async () => {
 			pid = child.pid!;
 		}
 
-		await fsPromises.writeFile(PID_FILE, pid.toString(), "utf8");
+		await fsPromises.writeFile(getPidFile(), pid.toString(), "utf8");
 
 		console.log(`CDDS daemon started in background (PID: ${pid})`);
-		console.log(`PID saved to: ${PID_FILE}`);
+		console.log(`PID saved to: ${getPidFile()}`);
 		console.log(`Use 'cdds status' to check, 'cdds stop' to stop.`);
 		return;
 	} else if (command === 'stop') {
 		try {
-			if (!(await fileExists(PID_FILE))) {
+			if (!(await fileExists(getPidFile()))) {
 				console.error("No PID file found. CDDS daemon does not appear to be running.");
 				process.exit(1);
 			}
-			const pid = parseInt(await fsPromises.readFile(PID_FILE, 'utf8'), 10);
+			const pid = parseInt(await fsPromises.readFile(getPidFile(), 'utf8'), 10);
 			if (!pid || isNaN(pid)) {
 				console.error("Invalid PID file. Try removing cdds.pid manually.");
 				process.exit(1);
 			}
 			process.kill(pid, 'SIGTERM');
-			await fsPromises.writeFile(PID_FILE, '', "utf8");
+			await fsPromises.writeFile(getPidFile(), '', "utf8");
 			console.log(`CDDS daemon stopped (PID: ${pid}).`);
 		} catch (err: any) {
 			if (err.code === 'ESRCH') {
 				console.log("CDDS daemon is not running (stale PID file removed).");
-				await fsPromises.writeFile(PID_FILE, '', "utf8");
+				await fsPromises.writeFile(getPidFile(), '', "utf8");
 			} else {
 				console.error(`Failed to stop daemon: ${err.message}`);
 				process.exit(1);
@@ -1025,11 +1052,11 @@ const main = async () => {
 		return;
 	} else if (command === 'status') {
 		try {
-			if (!(await fileExists(PID_FILE))) {
+			if (!(await fileExists(getPidFile()))) {
 				console.log("CDDS daemon: NOT running (no PID file found).");
 				process.exit(0);
 			}
-			const pid = parseInt(await fsPromises.readFile(PID_FILE, 'utf8'), 10);
+			const pid = parseInt(await fsPromises.readFile(getPidFile(), 'utf8'), 10);
 			if (!pid || isNaN(pid)) {
 				console.log("CDDS daemon: NOT running (invalid PID file).");
 				process.exit(0);
@@ -1039,7 +1066,7 @@ const main = async () => {
 				console.log(`CDDS daemon: RUNNING (PID: ${pid})`);
 			} catch {
 				console.log(`CDDS daemon: NOT running (stale PID: ${pid}).`);
-				await fsPromises.writeFile(PID_FILE, '', "utf8");
+				await fsPromises.writeFile(getPidFile(), '', "utf8");
 			}
 		} catch (err: any) {
 			console.error(`Status check failed: ${err.message}`);

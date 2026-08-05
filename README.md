@@ -83,6 +83,16 @@ Each service manager shows a live status header and dynamically presents only th
 
 The `cdds` CLI wizard automatically generates a `.env` file in the **current working directory** (wherever you run `cdds` from). You can override this location by setting the `CDDS_ENV_PATH` environment variable to an absolute path.
 
+### Advanced / Environment Variables
+
+- `CDDS_ENV_PATH`: Provide an absolute path to use a custom `.env` file instead of looking in the current directory.
+- `CDDS_LOGS_DIR`: Provide an absolute path to a directory where logs and PID files should be stored. Defaults to the directory containing the `.env` file. Can be set as an environment variable or directly inside the `.env` file itself.
+
+```bash
+# Example
+CDDS_ENV_PATH="/etc/cdds/.env" CDDS_LOGS_DIR="/var/log/cdds" cdds daemon
+```
+
 | Environment Variable      | Description                                                                                                                                 |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | **CDDS_API_KEY**          | Cloudflare API key or token (Auto-detected based on length/format).                                                                         |
@@ -97,6 +107,7 @@ The `cdds` CLI wizard automatically generates a `.env` file in the **current wor
 | **CDDS_ACTION_LOGFILE**   | Enable action logging. If `true`, all daemon actions are logged to `cdds-actions.log` with timestamps.                                     |
 | **CDDS_PROXIED**          | Enable Cloudflare proxy (orange cloud) for the DNS record (`true` or `false`, default `false`).                                             |
 | **CDDS_ENV_PATH**         | Absolute path to a custom `.env` file. All state files (`cdds.pid`, logs) will be stored in the same directory as the target `.env`.       |
+| **CDDS_LOGS_DIR**         | Absolute path to a custom directory for logs and `.pid` files. Overrides the `.env` file location for state files.                          |
 
 ### Example `.env` file:
 
@@ -109,6 +120,7 @@ CDDS_IP_TYPE=ipv4
 CDDS_LOGS=true
 CDDS_IP_LOGFILE=true
 CDDS_PROXIED=false
+CDDS_LOGS_DIR=/var/log/cdds
 ```
 
 ## 📝 License
