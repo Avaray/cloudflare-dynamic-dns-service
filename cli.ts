@@ -1085,7 +1085,10 @@ Usage:
 				{ label: 'Exit', value: 'exit' }
 			];
 			
-			const action = await selectPrompt('\x1b[34m\x1b[1mCloudflare Dynamic DNS Service (CDDS)\x1b[0m\n\nSelect an action:', menuItems);
+			const header = '\x1b[34m\x1b[1mCloudflare Dynamic DNS Service (CDDS)\x1b[0m\n' + 
+				(existingConfig ? `\x1b[90mConfig: ${getEnvPath()}\x1b[0m\n` : '') +
+				'\nSelect an action:';
+			const action = await selectPrompt(header, menuItems);
 			if (action === 'exit') break;
 			view = action;
 		} else if (view === 'env') {
