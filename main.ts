@@ -987,13 +987,6 @@ function validateConfig(config: CloudflareConfig): void {
       "Please set your Cloudflare API key/token (CDDS_API_KEY environment variable)",
     );
   }
-  if (config.apiKeyType === "key" && config.apiKey.length !== 37) {
-    throw new Error(`Invalid Global API Key length. Expected 37 characters, got ${config.apiKey.length}`);
-  }
-  if (config.apiKeyType === "token" && config.apiKey.length !== 40) {
-    throw new Error(`Invalid API Token length. Expected 40 characters, got ${config.apiKey.length}`);
-  }
-
   // Validate Targets (Domains/Subdomains)
   if (
     !config.targets || config.targets.length === 0 ||
