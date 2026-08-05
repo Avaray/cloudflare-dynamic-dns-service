@@ -284,18 +284,26 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	envContent += `CDDS_ACTION_LOGFILE=${actionLogFile}\n`;
 	envContent += `CDDS_IP_LOGFILE=${ipLogFile}\n`;
 
-	await fsPromises.writeFile(envPath, envContent, "utf8");
-	logMessage("Generated .env file via Wizard.");
-	
-	const action = await selectPrompt('Saved .env successfully! What do you want to do now?', [
-		{ label: 'Install as a service', value: 'install' },
-		{ label: 'Run temporarily (built-in daemon)', value: 'daemon' },
-		{ label: 'Return to main menu', value: 'menu' }
-	]);
-	
-	if (action === 'install') return 'install_prompt';
-	if (action === 'daemon') return 'daemon';
-	return 'menu';
+	try {
+		await fsPromises.mkdir(dirname(envPath), { recursive: true });
+		await fsPromises.writeFile(envPath, envContent, "utf8");
+		logMessage("Generated .env file via Wizard.");
+		
+		const action = await selectPrompt('Saved .env successfully! What do you want to do now?', [
+			{ label: 'Install as a service', value: 'install' },
+			{ label: 'Run temporarily (built-in daemon)', value: 'daemon' },
+			{ label: 'Return to main menu', value: 'menu' }
+		]);
+		
+		if (action === 'install') return 'install_prompt';
+		if (action === 'daemon') return 'daemon';
+		return 'menu';
+	} catch (e: any) {
+		console.log(`\x1b[31m\nFailed to save configuration file: ${e.message}\x1b[0m`);
+		console.log(`Please check if you have write permissions to: ${envPath}`);
+		await selectPrompt('Press Enter to return to main menu', [{ label: 'Return', value: 'menu' }]);
+		return 'menu';
+	}
 };
 
 // --- SERVICE MANAGERS ---
