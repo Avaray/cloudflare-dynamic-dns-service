@@ -1106,6 +1106,7 @@ Usage:
 	const pm2Available = isPM2Available();
 	const systemdAvailable = isSystemdAvailable();
 	const isMacOS = process.platform === 'darwin';
+	const isHeadlessMac = isMacOS && (!!process.env.SSH_CLIENT || !!process.env.SSH_TTY || !!process.env.CI);
 	
 	while (true) {
 		const existingConfig = await parseEnv();
@@ -1115,7 +1116,7 @@ Usage:
 				{ label: existingConfig ? 'Edit existing .env Configuration' : 'Run .env Configuration Wizard', value: 'env' },
 				{ label: 'Manage Daemon (built-in)', value: 'daemon' },
 				...(systemdAvailable ? [{ label: `Manage Systemd Service${!_isRoot ? ' (requires root)' : ''}`, value: 'systemd', disabled: !_isRoot }] : []),
-				...(isMacOS ? [{ label: 'Manage Launchd Service (macOS)', value: 'launchd' }] : []),
+				...(isMacOS ? [{ label: `Manage Launchd Service (macOS)${isHeadlessMac ? ' (requires GUI session)' : ''}`, value: 'launchd', disabled: isHeadlessMac }] : []),
 				...(isWindows ? [{ label: `Manage Windows Task Scheduler${!_isAdmin ? ' (requires Administrator)' : ''}`, value: 'taskscheduler', disabled: !_isAdmin }] : []),
 				...(pm2Available ? [{ label: 'Manage PM2 Service', value: 'pm2' }] : []),
 				{ label: 'Exit', value: 'exit' }
@@ -1130,7 +1131,7 @@ Usage:
 		} else if (view === 'install_prompt') {
 			const action = await selectPrompt('Which service manager would you like to use?', [
 				...(systemdAvailable ? [{ label: `Systemd (Debian/Ubuntu)${!_isRoot ? ' (requires root)' : ''}`, value: 'systemd', disabled: !_isRoot }] : []),
-				...(isMacOS ? [{ label: 'Launchd (macOS LaunchAgent)', value: 'launchd' }] : []),
+				...(isMacOS ? [{ label: `Launchd (macOS LaunchAgent)${isHeadlessMac ? ' (requires GUI session)' : ''}`, value: 'launchd', disabled: isHeadlessMac }] : []),
 				...(isWindows ? [{ label: `Windows Task Scheduler${!_isAdmin ? ' (requires Administrator)' : ''}`, value: 'taskscheduler', disabled: !_isAdmin }] : []),
 				...(pm2Available ? [{ label: 'PM2 (detected in PATH)', value: 'pm2' }] : []),
 				{ label: 'Nevermind, return to main menu', value: 'menu' }
