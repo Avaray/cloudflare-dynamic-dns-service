@@ -584,6 +584,9 @@ const runPM2Manager = async () => {
 
 const runTaskSchedulerManager = async () => {
 	while (true) {
+		const isConfigValid = await checkConfigValid();
+		const disableMsg = !isConfigValid ? ' (requires valid .env)' : '';
+
 		let taskStatus = 'Unknown';
 		try {
 			const out = execSync(`schtasks /query /tn "${TASK_NAME}" /fo LIST`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
