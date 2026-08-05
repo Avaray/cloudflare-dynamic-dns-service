@@ -7,7 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.1] - 2026-08-05
+
+### Added
+- **`--env` / `-e` global flag** — specify a custom path to the `.env` configuration file directly from the command line (e.g. `cdds --env /srv/cdds/prod.env`); overrides `CDDS_ENV_PATH` and is available for all commands (`start`, `daemon`, `status`, interactive UI); the flag is stripped early so sub-commands are unaffected
+- **Config path in main menu header** — when a valid configuration file is detected, its absolute path is now displayed in dimmed text below the app title in the interactive menu, making it immediately clear which config is active
+
+### Fixed
+- **Systemd Manager: incorrect `ExecStart` on global installs** — the generated `.service` file now uses the exact absolute path to the script (`bun /path/to/cli.js start --env /path/to/.env`) instead of `bun run cdds start`, which failed whenever the service was not started from the package directory; `CDDS_ENV_PATH` is also set in the `Environment=` line as a fallback
+- **PM2 Manager: config path not embedded in `pm2.config.cjs`** — the generated PM2 config now passes `--env /absolute/path/.env` in `args` and sets `CDDS_ENV_PATH` in the `env` block, ensuring the correct config is loaded even when PM2 restarts the process from a different working directory
+- **Launchd Manager: `--env` not propagated on install/reload** — the generated `.plist` `ProgramArguments` array now explicitly includes `--env` and the absolute path to the `.env` file as additional entries, so the daemon always loads the correct config after system reboots
+
+### Style
+- **Dimmed UI elements use `faint` instead of `dark gray`** — disabled menu items and secondary info text (e.g. config path, plist path) now use ANSI `\x1b[2m` (faint) instead of `\x1b[90m` (hard dark gray); this respects the terminal's native color scheme and is noticeably more readable on light and dark backgrounds
+
+---
+
 ## [1.7.0] - 2026-08-05
+
 
 ### Added
 - **macOS Launchd Manager** — new service manager for macOS, integrated into the main menu and the install wizard; supports Install & Start, Start, Stop, Reload, and Uninstall operations

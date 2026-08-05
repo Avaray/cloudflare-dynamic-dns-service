@@ -1,6 +1,6 @@
 {
   "name": "cloudflare-dynamic-dns-service",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Cloudflare Dynamic DNS Service",
   "type": "module",
   "main": "dist/main.js",
