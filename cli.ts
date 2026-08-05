@@ -1115,15 +1115,25 @@ Usage:
 	
 	while (true) {
 		const existingConfig = await parseEnv();
+		let configError = '';
+		if (existingConfig) {
+			try {
+				validateConfig(existingConfig);
+			} catch (e: any) {
+				configError = e.message;
+			}
+		}
+		const isConfigValid = !!(existingConfig && !configError);
+		const disableMsg = !existingConfig ? ' (requires .env)' : (configError ? ' (invalid .env)' : '');
 		
 		if (view === 'menu') {
 			const menuItems = [
 				{ label: existingConfig ? 'Edit existing .env Configuration' : 'Run .env Configuration Wizard', value: 'env' },
-				{ label: 'Manage Daemon (built-in)', value: 'daemon' },
-				...(systemdAvailable ? [{ label: `Manage Systemd Service${!_isRoot ? ' (requires root)' : ''}`, value: 'systemd', disabled: !_isRoot }] : []),
-				...(isMacOS ? [{ label: `Manage Launchd Service (macOS)${!_isRoot ? ' (requires root)' : ''}`, value: 'launchd', disabled: !_isRoot }] : []),
-				...(isWindows ? [{ label: `Manage Windows Task Scheduler${!_isAdmin ? ' (requires Administrator)' : ''}`, value: 'taskscheduler', disabled: !_isAdmin }] : []),
-				...(pm2Available ? [{ label: 'Manage PM2 Service', value: 'pm2' }] : []),
+				{ label: `Manage Daemon (built-in)${disableMsg}`, value: 'daemon', disabled: !isConfigValid },
+				...(systemdAvailable ? [{ label: `Manage Systemd Service${!_isRoot ? ' (requires root)' : disableMsg}`, value: 'systemd', disabled: !_isRoot || !isConfigValid }] : []),
+				...(isMacOS ? [{ label: `Manage Launchd Service (macOS)${!_isRoot ? ' (requires root)' : disableMsg}`, value: 'launchd', disabled: !_isRoot || !isConfigValid }] : []),
+				...(isWindows ? [{ label: `Manage Windows Task Scheduler${!_isAdmin ? ' (requires Administrator)' : disableMsg}`, value: 'taskscheduler', disabled: !_isAdmin || !isConfigValid }] : []),
+				...(pm2Available ? [{ label: `Manage PM2 Service${disableMsg}`, value: 'pm2', disabled: !isConfigValid }] : []),
 				{ label: 'Exit', value: 'exit' }
 			];
 			
@@ -1132,7 +1142,11 @@ Usage:
 			const currentEnvPath = getEnvPath();
 
 			if (existingConfig) {
-				configPathStr = `\x1b[2mConfig: ${currentEnvPath}\x1b[0m\n`;
+				if (configError) {
+					configPathStr = `\x1b[31mConfig: ${currentEnvPath} (Missing required fields)\x1b[0m\n`;
+				} else {
+					configPathStr = `\x1b[2mConfig: ${currentEnvPath}\x1b[0m\n`;
+				}
 			} else if (isCustomEnv) {
 				let accessError: any = null;
 				try {
@@ -1148,7 +1162,7 @@ Usage:
 						configPathStr = `\x1b[31mConfig: ${currentEnvPath} (Permission denied / Access error)\x1b[0m\n`;
 					}
 				} else {
-					configPathStr = `\x1b[31mConfig: ${currentEnvPath} (Invalid configuration)\x1b[0m\n`;
+					configPathStr = `\x1b[31mConfig: ${currentEnvPath} (Invalid format)\x1b[0m\n`;
 				}
 			}
 
