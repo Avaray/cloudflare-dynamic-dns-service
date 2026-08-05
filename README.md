@@ -81,7 +81,7 @@ Each service manager shows a live status header and dynamically presents only th
 
 ## ⚙️ Configuration (.env)
 
-The `cdds` CLI wizard automatically generates a `.env` file in the **current working directory** (wherever you run `cdds` from). You can override this location by setting the `CDDS_ENV_PATH` environment variable to an absolute path.
+The `cdds` CLI wizard will generate a `.env` file in the **current working directory** (wherever you run `cdds` from) after you complete the interactive setup. You can override this location by setting the `CDDS_ENV_PATH` environment variable to an absolute path.
 
 ### Advanced / Environment Variables
 
