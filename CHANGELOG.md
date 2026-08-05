@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.2] - 2026-08-06
+
+### Added
+- **Enhanced Configuration Validation:** Added strict checking for API key lengths (37 chars for Global Key, 40 chars for API Token), Regex validation for target domains/subdomains, and Regex validation for email addresses.
+
+### Changed
+- **Smarter Wizard:** The `.env` Configuration Wizard now auto-detects if you pasted a 40-character API Token and completely skips the email address prompt, streamlining the setup process.
+
+---
+
 ## [1.8.1] - 2026-08-06
 
 ### Changed
