@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.0] - 2026-08-05
+
+### Added
+- **`CDDS_LOGS_DIR` environment variable** — allows decoupling log and PID files from the `.env` configuration directory. This is especially useful for global system installs (e.g. storing `.env` in `/etc/cdds` and logs in `/var/log/cdds`). Can be passed as an environment variable or set directly inside the `.env` file itself.
+
+### Changed
+- **Enhanced `--env` path visibility in CLI** — if the CLI is started with a custom `--env` path that points to a non-existent or inaccessible file, the path is now explicitly displayed in the header with its status (`File does not exist`, `Permission denied`, or `Invalid configuration`).
+- **Wizard auto-creates parent directories** — when completing the Configuration Wizard for a custom `--env` path that doesn't exist yet, the CLI will now automatically create all required parent directories before saving the `.env` file. It also elegantly catches file permission errors instead of crashing.
+
+---
+
 ## [1.7.1] - 2026-08-05
 
 ### Added
