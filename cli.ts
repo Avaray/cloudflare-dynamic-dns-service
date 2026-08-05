@@ -224,7 +224,12 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	console.log('\x1b[36m\x1b[1m--- .ENV CONFIGURATION WIZARD ---\x1b[0m\n');
 	
 	apiKey = await textPrompt('Cloudflare API Key / Token:', apiKey);
-	email = await textPrompt('Cloudflare Email (Leave empty if using Token):', email);
+	const keyType = detectApiKeyType(apiKey);
+	if (keyType === 'key') {
+		email = await textPrompt('Cloudflare Email (required for Global API Key):', email);
+	} else {
+		email = ''; // Clear email if it's a token
+	}
 	targets = await textPrompt('Targets (comma separated, e.g. sub.domain.com):', targets);
 	zoneId = await textPrompt('Zone ID (Optional, leave empty for auto-discover):', zoneId);
 	ttl = await textPrompt('TTL in seconds:', ttl);
