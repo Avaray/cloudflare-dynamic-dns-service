@@ -1123,7 +1123,7 @@ const main = async () => {
 		return;
 	} else if (command === 'help' || command === '--help' || command === '-h') {
 		console.log(`
-CDDS - Cloudflare Dynamic DNS Service
+Cloudflare Dynamic DNS Service (CDDS)
 
 Usage:
   cdds              Open interactive service manager (UI)
