@@ -56,7 +56,7 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 			items.forEach((item, index) => {
 				if (item.disabled) {
 					// Dark gray — visually unavailable but readable
-					console.log(`  \x1b[90m${item.label}\x1b[0m`);
+					console.log(`  \x1b[2m${item.label}\x1b[0m`);
 				} else if (index === selectedIndex) {
 					console.log(`\x1b[32m❯ ${item.label}\x1b[0m`);
 				} else {
@@ -751,7 +751,7 @@ const runLaunchdManager = async () => {
 				const out = execSync(`launchctl load -w "${plistPath}" 2>&1`, { encoding: 'utf8' });
 				if (out.toLowerCase().includes('failed') || out.toLowerCase().includes('error')) throw new Error(out.trim());
 				console.log(`\x1b[32mSUCCESS: LaunchDaemon installed and started!\x1b[0m`);
-				console.log(`\x1b[90mPlist: ${plistPath}\x1b[0m`);
+				console.log(`\x1b[2mPlist: ${plistPath}\x1b[0m`);
 				logMessage(`Launchd: Installed and started ${LAUNCHD_LABEL}`);
 			} else if (action === 'reload') {
 				// Regenerate plist and reload
@@ -1086,7 +1086,7 @@ Usage:
 			];
 			
 			const header = '\x1b[34m\x1b[1mCloudflare Dynamic DNS Service (CDDS)\x1b[0m\n' + 
-				(existingConfig ? `\x1b[90mConfig: ${getEnvPath()}\x1b[0m\n` : '') +
+				(existingConfig ? `\x1b[2mConfig: ${getEnvPath()}\x1b[0m\n` : '') +
 				'\nSelect an action:';
 			const action = await selectPrompt(header, menuItems);
 			if (action === 'exit') break;
