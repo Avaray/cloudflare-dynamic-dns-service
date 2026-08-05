@@ -950,6 +950,7 @@ const runDaemonManager = async () => {
 
 				console.log(`\n\x1b[33mYou are about to kill PID ${targetPid}:\x1b[0m`);
 				console.log(`  ${target.cmdLine.slice(0, 100)}${target.cmdLine.length > 100 ? '…' : ''}\n`);
+				console.log(`\x1b[31m[!] WARNING:\x1b[0m If this process is managed by PM2, Systemd, Launchd, or Task Scheduler,\nit will likely restart automatically with a new PID after being killed.\nTo permanently stop it, please use the respective Service Manager from the main menu.\n`);
 				const confirm = await selectPrompt('Are you sure?', [
 					{ label: 'Yes, kill it (SIGTERM)', value: 'yes' },
 					{ label: 'No, cancel', value: 'no' },
