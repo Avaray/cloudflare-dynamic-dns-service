@@ -968,18 +968,33 @@ const config: CloudflareConfig = {
 
 // Validate configuration
 function validateConfig(config: CloudflareConfig): void {
+  // Validate Email
   if (config.apiKeyType === "key") {
     if (!config.email || config.email === "your_email@example.com") {
       throw new Error(
         "Please set your Cloudflare email (CDDS_EMAIL environment variable) when using API key",
       );
     }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(config.email)) {
+      throw new Error(`Invalid email address format: ${config.email}`);
+    }
   }
+
+  // Validate API Key
   if (!config.apiKey || config.apiKey === "your_cloudflare_api_key_here") {
     throw new Error(
       "Please set your Cloudflare API key/token (CDDS_API_KEY environment variable)",
     );
   }
+  if (config.apiKeyType === "key" && config.apiKey.length !== 37) {
+    throw new Error(`Invalid Global API Key length. Expected 37 characters, got ${config.apiKey.length}`);
+  }
+  if (config.apiKeyType === "token" && config.apiKey.length !== 40) {
+    throw new Error(`Invalid API Token length. Expected 40 characters, got ${config.apiKey.length}`);
+  }
+
+  // Validate Targets (Domains/Subdomains)
   if (
     !config.targets || config.targets.length === 0 ||
     config.targets.some((t) => t === "subdomain.yourdomain.com")
@@ -988,6 +1003,14 @@ function validateConfig(config: CloudflareConfig): void {
       "Please set your target domain(s) (CDDS_TARGETS environment variable - comma-separated for multiple targets)",
     );
   }
+  const domainRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+  for (const target of config.targets) {
+    if (!domainRegex.test(target)) {
+      throw new Error(`Invalid domain name format: ${target}`);
+    }
+  }
+
+  // Validate numbers and enums
   if (config.ttl < 60) {
     throw new Error("TTL must be at least 60 seconds");
   }
