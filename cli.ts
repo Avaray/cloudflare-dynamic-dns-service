@@ -353,6 +353,8 @@ const runSystemdManager = async () => {
 			if (action === 'install') {
 				const projectPath = getLogDir();
 				const bunPath = process.execPath;
+				const scriptPath = import.meta.url ? new URL(import.meta.url).pathname : process.argv[1];
+				const envPath = getEnvPath();
 				const serviceContent = `[Unit]
 Description=Cloudflare Dynamic DNS Service
 After=network.target
@@ -361,9 +363,10 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=${projectPath}
-ExecStart=${bunPath} run cdds start
+ExecStart=${bunPath} ${scriptPath} start --env ${envPath}
 Restart=on-failure
 RestartSec=10
+Environment="CDDS_ENV_PATH=${envPath}"
 StandardOutput=syslog
 StandardError=syslog
 SyslogIdentifier=${SERVICE_NAME}
@@ -477,7 +480,7 @@ const runPM2Manager = async () => {
 				const bunExec = process.execPath;
 				const scriptPath = import.meta.url ? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') : process.argv[1];
 
-				const pm2Content = `module.exports = {\n  apps: [\n    {\n      name: "${PM2_SERVICE_NAME}",\n      script: "${scriptPath.replace(/\\/g, '/')}",\n      args: "start",\n      interpreter: "${bunExec.replace(/\\/g, '/')}",\n      instances: 1,\n      autorestart: true,\n      watch: false,\n      cwd: "${getLogDir().replace(/\\/g, '/')}",\n      max_memory_restart: "100M",\n      env: { NODE_ENV: "production" },\n    },\n  ],\n};\n`;
+				const pm2Content = `module.exports = {\n  apps: [\n    {\n      name: "${PM2_SERVICE_NAME}",\n      script: "${scriptPath.replace(/\\/g, '/')}",\n      args: "start --env ${getEnvPath().replace(/\\/g, '/')}",\n      interpreter: "${bunExec.replace(/\\/g, '/')}",\n      instances: 1,\n      autorestart: true,\n      watch: false,\n      cwd: "${getLogDir().replace(/\\/g, '/')}",\n      max_memory_restart: "100M",\n      env: { NODE_ENV: "production", CDDS_ENV_PATH: "${getEnvPath().replace(/\\/g, '/')}" },\n    },\n  ],\n};\n`;
 				const pm2ConfigPath = resolve(getLogDir(), 'pm2.config.cjs');
 				await fsPromises.writeFile(pm2ConfigPath, pm2Content, "utf8");
 				execSync(`pm2 start "${pm2ConfigPath}"`);
@@ -487,7 +490,7 @@ const runPM2Manager = async () => {
 			} else if (action === 'reload') {
 				const bunExec = process.execPath;
 				const scriptPath = import.meta.url ? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') : process.argv[1];
-				const pm2Content = `module.exports = {\n  apps: [\n    {\n      name: "${targetName}",\n      script: "${scriptPath.replace(/\\/g, '/')}",\n      args: "start",\n      interpreter: "${bunExec.replace(/\\/g, '/')}",\n      instances: 1,\n      autorestart: true,\n      watch: false,\n      cwd: "${getLogDir().replace(/\\/g, '/')}",\n      max_memory_restart: "100M",\n      env: { NODE_ENV: "production" },\n    },\n  ],\n};\n`;
+				const pm2Content = `module.exports = {\n  apps: [\n    {\n      name: "${targetName}",\n      script: "${scriptPath.replace(/\\/g, '/')}",\n      args: "start --env ${getEnvPath().replace(/\\/g, '/')}",\n      interpreter: "${bunExec.replace(/\\/g, '/')}",\n      instances: 1,\n      autorestart: true,\n      watch: false,\n      cwd: "${getLogDir().replace(/\\/g, '/')}",\n      max_memory_restart: "100M",\n      env: { NODE_ENV: "production", CDDS_ENV_PATH: "${getEnvPath().replace(/\\/g, '/')}" },\n    },\n  ],\n};\n`;
 				const pm2ConfigPath = resolve(getLogDir(), 'pm2.config.cjs');
 				await fsPromises.writeFile(pm2ConfigPath, pm2Content, "utf8");
 				execSync(`pm2 start "${pm2ConfigPath}"`);
@@ -729,6 +732,8 @@ const runLaunchdManager = async () => {
     <string>${execPath}</string>
     <string>${scriptPath}</string>
     <string>start</string>
+    <string>--env</string>
+    <string>${envPath}</string>
   </array>
   <key>WorkingDirectory</key>
   <string>${workDir}</string>
@@ -767,6 +772,8 @@ const runLaunchdManager = async () => {
     <string>${execPath}</string>
     <string>${scriptPath}</string>
     <string>start</string>
+    <string>--env</string>
+    <string>${envPath}</string>
   </array>
   <key>WorkingDirectory</key>
   <string>${workDir}</string>
