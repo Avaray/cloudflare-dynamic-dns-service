@@ -1119,8 +1119,33 @@ Usage:
 				{ label: 'Exit', value: 'exit' }
 			];
 			
+			let configPathStr = '';
+			const isCustomEnv = !!process.env.CDDS_ENV_PATH;
+			const currentEnvPath = getEnvPath();
+
+			if (existingConfig) {
+				configPathStr = `\x1b[2mConfig: ${currentEnvPath}\x1b[0m\n`;
+			} else if (isCustomEnv) {
+				let accessError: any = null;
+				try {
+					await fsPromises.access(currentEnvPath, (await import('fs')).constants.R_OK);
+				} catch (e) {
+					accessError = e;
+				}
+				
+				if (accessError) {
+					if (accessError.code === 'ENOENT') {
+						configPathStr = `\x1b[2mConfig: ${currentEnvPath} (File does not exist)\x1b[0m\n`;
+					} else {
+						configPathStr = `\x1b[31mConfig: ${currentEnvPath} (Permission denied / Access error)\x1b[0m\n`;
+					}
+				} else {
+					configPathStr = `\x1b[31mConfig: ${currentEnvPath} (Invalid configuration)\x1b[0m\n`;
+				}
+			}
+
 			const header = '\x1b[34m\x1b[1mCloudflare Dynamic DNS Service (CDDS)\x1b[0m\n' + 
-				(existingConfig ? `\x1b[2mConfig: ${getEnvPath()}\x1b[0m\n` : '') +
+				configPathStr +
 				'\nSelect an action:';
 			const action = await selectPrompt(header, menuItems);
 			if (action === 'exit') break;
