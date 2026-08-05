@@ -1126,6 +1126,7 @@ const main = async () => {
 Cloudflare Dynamic DNS Service (CDDS)
 
 Usage:
+
   cdds              Open interactive service manager (UI)
   cdds start        Run daemon in foreground (blocks terminal)
   cdds daemon       Run daemon in background (detached)
