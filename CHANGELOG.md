@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.0] - 2026-08-05
+
+### Added
+- **macOS Launchd Manager** — new service manager for macOS, integrated into the main menu and the install wizard; supports Install & Start, Start, Stop, Reload, and Uninstall operations
+
+### Changed
+- **Launchd: LaunchAgent → LaunchDaemon** — migrated from per-user `~/Library/LaunchAgents` (requires active GUI session) to system-wide `/Library/LaunchDaemons`; the daemon now starts at boot, runs as root, and works fully in headless SSH / CI environments; requires `sudo` to install or manage
+- **Service managers are now isolated** — each manager (Built-in Daemon, Systemd, PM2, Launchd, Task Scheduler) is now strictly self-contained and only manages its own service; the Built-in Daemon no longer scans the OS for external `cdds` processes or offers to kill them
+- **Standardized menu UX across all managers** — all managers now show a consistent header with `Service: <name>` and `Status: <color-coded state>`; menu options (Start / Stop / Reload / Uninstall) appear or are hidden dynamically based on the actual current state
+- **Systemd Manager now shows live status** — added `getSystemdStatus()` using `systemctl show -p LoadState,ActiveState,MainPID`; reports `Running (PID: X)`, `Stopped`, `Failed`, or `Not Installed` without crashing the CLI
+- **PM2 Manager simplified** — now targets only the exact `Cloudflare-Dynamic-DNS-Service` process name; removed fuzzy cross-process scanning that could match unrelated services
+- **Task Scheduler Manager simplified** — removed OS-wide scan for other similarly-named tasks; menu labels standardized to match other managers (`Install & Start Service`, `Stop Service`, `Start Service`, `Uninstall / Remove Service`)
+- Launchd and Systemd menu entries show `(requires root)` and are disabled when not running as `sudo`
+
+### Fixed
+- **Launchd stop shows "Not Installed"** — after a `Stop Service` (`launchctl unload`) the status check now detects the plist file on disk and correctly reports `Stopped (unloaded)` instead of `Not Installed`; the `Start Service` option remains available without needing to reinstall
+
+---
+
 ## [1.6.0] - 2026-08-05
 
 ### Added
