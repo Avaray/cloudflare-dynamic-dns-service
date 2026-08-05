@@ -321,6 +321,17 @@ const isWindowsAdmin = (): boolean => {
 	try { execSync('net session', { stdio: 'ignore' }); return true; } catch { return false; }
 };
 
+const checkConfigValid = async (): Promise<boolean> => {
+	try {
+		const cfg = await parseEnv();
+		if (!cfg) return false;
+		validateConfig(cfg);
+		return true;
+	} catch {
+		return false;
+	}
+};
+
 const TASK_NAME = 'Cloudflare-Dynamic-DNS-Service';
 
 const runSystemdManager = async () => {
@@ -347,6 +358,9 @@ const runSystemdManager = async () => {
 	};
 
 	while (true) {
+		const isConfigValid = await checkConfigValid();
+		const disableMsg = !isConfigValid ? ' (requires valid .env)' : '';
+
 		const statusRaw = getSystemdStatus();
 		const notInstalled = statusRaw === 'Not Installed';
 		const isRunning = statusRaw.startsWith('Running');
@@ -357,10 +371,10 @@ const runSystemdManager = async () => {
 		if (notInstalled || isFailed) statusColor = '\x1b[31m';
 
 		const items = [
-			...(notInstalled ? [{ label: 'Install & Start Service (Systemd)', value: 'install' }] : []),
-			...(!notInstalled && isRunning ? [{ label: 'Reload (restart with latest config)', value: 'reload' }] : []),
+			...(notInstalled ? [{ label: `Install & Start Service (Systemd)${disableMsg}`, value: 'install', disabled: !isConfigValid }] : []),
+			...(!notInstalled && isRunning ? [{ label: `Reload (restart with latest config)${disableMsg}`, value: 'reload', disabled: !isConfigValid }] : []),
 			...(!notInstalled && isRunning ? [{ label: 'Stop Service', value: 'pause' }] : []),
-			...(!notInstalled && !isRunning ? [{ label: 'Start Service', value: 'resume' }] : []),
+			...(!notInstalled && !isRunning ? [{ label: `Start Service${disableMsg}`, value: 'resume', disabled: !isConfigValid }] : []),
 			...(!notInstalled ? [{ label: 'Uninstall / Remove Service', value: 'remove' }] : []),
 			{ label: 'Refresh Status', value: 'refresh' },
 			{ label: 'Go Back', value: 'back' },
@@ -461,6 +475,9 @@ const runPM2Manager = async () => {
 	};
 
 	while (true) {
+		const isConfigValid = await checkConfigValid();
+		const disableMsg = !isConfigValid ? ' (requires valid .env)' : '';
+
 		let primary: PM2Process | null = null;
 		let pm2Error = '';
 
@@ -486,10 +503,10 @@ const runPM2Manager = async () => {
 		}
 
 		const items: { label: string; value: string; disabled?: boolean }[] = [
-			...(notInstalled && !pm2Error ? [{ label: 'Install & Start Service (PM2)', value: 'install' }] : []),
-			...(!notInstalled && isOnline ? [{ label: 'Reload (restart with latest config)', value: 'reload' }] : []),
+			...(notInstalled && !pm2Error ? [{ label: `Install & Start Service (PM2)${disableMsg}`, value: 'install', disabled: !isConfigValid }] : []),
+			...(!notInstalled && isOnline ? [{ label: `Reload (restart with latest config)${disableMsg}`, value: 'reload', disabled: !isConfigValid }] : []),
 			...(!notInstalled && isOnline ? [{ label: 'Stop Service', value: 'pause' }] : []),
-			...(!notInstalled && isStopped ? [{ label: 'Start Service', value: 'resume' }] : []),
+			...(!notInstalled && isStopped ? [{ label: `Start Service${disableMsg}`, value: 'resume', disabled: !isConfigValid }] : []),
 			...(!notInstalled ? [{ label: 'Uninstall / Remove Service', value: 'remove' }] : []),
 			...(!pm2Error ? [{ label: 'Save Services (pm2 save)', value: 'save' }] : []),
 			{ label: 'Refresh Status', value: 'refresh' },
@@ -573,10 +590,10 @@ const runTaskSchedulerManager = async () => {
 		
 		const notInstalled = taskStatus === 'Not Installed';
 		const items = [
-			...(notInstalled ? [{ label: 'Install & Start Service (Task Scheduler)', value: 'install' }] : []),
-			...(!notInstalled ? [{ label: 'Reload (restart with latest config)', value: 'reload' }] : []),
+			...(notInstalled ? [{ label: `Install & Start Service (Task Scheduler)${disableMsg}`, value: 'install', disabled: !isConfigValid }] : []),
+			...(!notInstalled ? [{ label: `Reload (restart with latest config)${disableMsg}`, value: 'reload', disabled: !isConfigValid }] : []),
 			...(!notInstalled && taskStatus !== 'Disabled' ? [{ label: 'Stop Service', value: 'pause' }] : []),
-			...(!notInstalled && taskStatus !== 'Running' && taskStatus !== 'Ready' ? [{ label: 'Start Service', value: 'resume' }] : []),
+			...(!notInstalled && taskStatus !== 'Running' && taskStatus !== 'Ready' ? [{ label: `Start Service${disableMsg}`, value: 'resume', disabled: !isConfigValid }] : []),
 			...(!notInstalled ? [{ label: 'Uninstall / Remove Service', value: 'remove' }] : []),
 			{ label: 'Refresh Status', value: 'refresh' },
 			{ label: 'Go Back', value: 'back' },
@@ -711,16 +728,19 @@ const runLaunchdManager = async () => {
 	};
 
 	while (true) {
+		const isConfigValid = await checkConfigValid();
+		const disableMsg = !isConfigValid ? ' (requires valid .env)' : '';
+
 		const statusRaw = getLaunchdStatus();
 		const notInstalled = statusRaw === 'Not Installed';
 		const isRunning = statusRaw.startsWith('Running');
 		const statusColor = isRunning ? '\x1b[32m' : (notInstalled ? '\x1b[31m' : '\x1b[33m');
 
 		const items = [
-			...(notInstalled ? [{ label: 'Install & Start Service (LaunchDaemon)', value: 'install' }] : []),
-			...(!notInstalled && isRunning ? [{ label: 'Reload (restart with latest config)', value: 'reload' }] : []),
+			...(notInstalled ? [{ label: `Install & Start Service (LaunchDaemon)${disableMsg}`, value: 'install', disabled: !isConfigValid }] : []),
+			...(!notInstalled && isRunning ? [{ label: `Reload (restart with latest config)${disableMsg}`, value: 'reload', disabled: !isConfigValid }] : []),
 			...(!notInstalled && isRunning ? [{ label: 'Stop Service', value: 'stop' }] : []),
-			...(!notInstalled && !isRunning ? [{ label: 'Start Service', value: 'start' }] : []),
+			...(!notInstalled && !isRunning ? [{ label: `Start Service${disableMsg}`, value: 'start', disabled: !isConfigValid }] : []),
 			...(!notInstalled ? [{ label: 'Uninstall / Remove Service', value: 'remove' }] : []),
 			{ label: 'Refresh Status', value: 'refresh' },
 			{ label: 'Go Back', value: 'back' },
@@ -858,6 +878,9 @@ const runLaunchdManager = async () => {
 
 const runDaemonManager = async () => {
 	while (true) {
+		const isConfigValid = await checkConfigValid();
+		const disableMsg = !isConfigValid ? ' (requires valid .env)' : '';
+
 		let running = false;
 		let pid: number | null = null;
 		
@@ -877,8 +900,8 @@ const runDaemonManager = async () => {
 		} catch {}
 
 		const items = [
-			...(!running ? [{ label: 'Start Daemon (background)', value: 'start' }] : []),
-			...(running ? [{ label: 'Reload Daemon (restart with latest config)', value: 'reload' }] : []),
+			...(!running ? [{ label: `Start Daemon (background)${disableMsg}`, value: 'start', disabled: !isConfigValid }] : []),
+			...(running ? [{ label: `Reload Daemon (restart with latest config)${disableMsg}`, value: 'reload', disabled: !isConfigValid }] : []),
 			...(running ? [{ label: 'Stop Daemon', value: 'stop' }] : []),
 			{ label: 'Refresh Status', value: 'refresh' },
 			{ label: 'Go Back', value: 'back' },
@@ -1124,16 +1147,15 @@ Usage:
 			}
 		}
 		const isConfigValid = !!(existingConfig && !configError);
-		const disableMsg = !existingConfig ? ' (requires .env)' : (configError ? ' (invalid .env)' : '');
 		
 		if (view === 'menu') {
 			const menuItems = [
 				{ label: existingConfig ? 'Edit existing .env Configuration' : 'Run .env Configuration Wizard', value: 'env' },
-				{ label: `Manage Daemon (built-in)${disableMsg}`, value: 'daemon', disabled: !isConfigValid },
-				...(systemdAvailable ? [{ label: `Manage Systemd Service${!_isRoot ? ' (requires root)' : disableMsg}`, value: 'systemd', disabled: !_isRoot || !isConfigValid }] : []),
-				...(isMacOS ? [{ label: `Manage Launchd Service (macOS)${!_isRoot ? ' (requires root)' : disableMsg}`, value: 'launchd', disabled: !_isRoot || !isConfigValid }] : []),
-				...(isWindows ? [{ label: `Manage Windows Task Scheduler${!_isAdmin ? ' (requires Administrator)' : disableMsg}`, value: 'taskscheduler', disabled: !_isAdmin || !isConfigValid }] : []),
-				...(pm2Available ? [{ label: `Manage PM2 Service${disableMsg}`, value: 'pm2', disabled: !isConfigValid }] : []),
+				{ label: 'Manage Daemon (built-in)', value: 'daemon' },
+				...(systemdAvailable ? [{ label: `Manage Systemd Service${!_isRoot ? ' (requires root)' : ''}`, value: 'systemd', disabled: !_isRoot }] : []),
+				...(isMacOS ? [{ label: `Manage Launchd Service (macOS)${!_isRoot ? ' (requires root)' : ''}`, value: 'launchd', disabled: !_isRoot }] : []),
+				...(isWindows ? [{ label: `Manage Windows Task Scheduler${!_isAdmin ? ' (requires Administrator)' : ''}`, value: 'taskscheduler', disabled: !_isAdmin }] : []),
+				...(pm2Available ? [{ label: 'Manage PM2 Service', value: 'pm2' }] : []),
 				{ label: 'Exit', value: 'exit' }
 			];
 			
