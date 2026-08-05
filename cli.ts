@@ -2,7 +2,7 @@
 import process from 'process';
 import { execSync as nodeExecSync, spawn } from 'child_process';
 import { promises as fsPromises } from 'node:fs';
-import { appendFileSync, writeFileSync, unlinkSync } from 'fs';
+import { appendFileSync, writeFileSync, unlinkSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 
 const execSync = (cmd: string, options: any = {}) => {
@@ -666,6 +666,7 @@ const runLaunchdManager = async () => {
 			if (statusMatch) return `Stopped (exit code: ${statusMatch[1]})`;
 			return 'Loaded (not running)';
 		} catch {
+			if (existsSync(plistPath)) return 'Stopped (unloaded)';
 			return 'Not Installed';
 		}
 	};
