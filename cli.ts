@@ -359,7 +359,7 @@ const runSystemdManager = async () => {
 
 	while (true) {
 		const isConfigValid = await checkConfigValid();
-		const disableMsg = !isConfigValid ? ' (requires valid .env)' : '';
+		const disableMsg = !isConfigValid ? ' (requires valid configuration)' : '';
 
 		const statusRaw = getSystemdStatus();
 		const notInstalled = statusRaw === 'Not Installed';
@@ -476,7 +476,7 @@ const runPM2Manager = async () => {
 
 	while (true) {
 		const isConfigValid = await checkConfigValid();
-		const disableMsg = !isConfigValid ? ' (requires valid .env)' : '';
+		const disableMsg = !isConfigValid ? ' (requires valid configuration)' : '';
 
 		let primary: PM2Process | null = null;
 		let pm2Error = '';
@@ -729,7 +729,7 @@ const runLaunchdManager = async () => {
 
 	while (true) {
 		const isConfigValid = await checkConfigValid();
-		const disableMsg = !isConfigValid ? ' (requires valid .env)' : '';
+		const disableMsg = !isConfigValid ? ' (requires valid configuration)' : '';
 
 		const statusRaw = getLaunchdStatus();
 		const notInstalled = statusRaw === 'Not Installed';
@@ -879,7 +879,7 @@ const runLaunchdManager = async () => {
 const runDaemonManager = async () => {
 	while (true) {
 		const isConfigValid = await checkConfigValid();
-		const disableMsg = !isConfigValid ? ' (requires valid .env)' : '';
+		const disableMsg = !isConfigValid ? ' (requires valid configuration)' : '';
 
 		let running = false;
 		let pid: number | null = null;
