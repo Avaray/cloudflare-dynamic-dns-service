@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.0] - 2026-08-06
+
+### Added
+- **Task Scheduler startup trigger selection:** When installing the service via Windows Task Scheduler, a new prompt lets you choose *when* the task starts:
+  - `On system boot` (default, with a 30s built-in delay)
+  - `On system boot with custom delay` — enter any number of seconds; automatically converted to ISO 8601 format (`PT2M30S`, etc.)
+  - `On user logon` — uses `<LogonTrigger>` instead of `<BootTrigger>`
+- **Config validation — email & domain regex:** Email addresses are now validated against a format regex when using a Global API Key. Each target domain/subdomain is validated against a strict hostname regex.
+- **Smarter Configuration Wizard:** The wizard now auto-detects the API key type immediately after entry and skips the email prompt entirely when an API Token is provided.
+
+### Fixed
+- `isConfigValid` / `disableMsg` variables were missing from the Task Scheduler manager loop, causing a `Cannot find name` TypeScript error.
+- Removed incorrect strict length checks for API keys (`=== 37` / `=== 40`) that broke existing tests and rejected valid tokens of other lengths.
+
+---
+
 ## [1.8.2] - 2026-08-06
 
 ### Added
