@@ -625,25 +625,43 @@ const runTaskSchedulerManager = async () => {
 			validateConfig(cfg);
 
 			if (action === 'install') {
-				const execPath = process.execPath.replace(/\//g, '\\');
-				const scriptPath = (import.meta.url
-					? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
-					: process.argv[1]
-				).replace(/\//g, '\\');
-				const workDir = getLogDir().replace(/\//g, '\\');
-				const envPath = getEnvPath().replace(/\//g, '\\');
+					const execPath = process.execPath.replace(/\//g, '\\');
+					const scriptPath = (import.meta.url
+						? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
+						: process.argv[1]
+					).replace(/\//g, '\\');
+					const workDir = getLogDir().replace(/\//g, '\\');
+					const envPath = getEnvPath().replace(/\//g, '\\');
 
-				// Build task XML — avoids all quoting/escaping issues with spaces in paths
-				const taskXml = `<?xml version="1.0" encoding="UTF-16"?>
+					// Ask about startup trigger
+					const triggerType = await selectPrompt('When should the service start?', [
+						{ label: 'On system boot (recommended)', value: 'boot' },
+						{ label: 'On system boot with custom delay', value: 'boot-delay' },
+						{ label: 'On user logon', value: 'logon' },
+					]);
+
+					let triggerXml: string;
+					if (triggerType === 'boot') {
+						triggerXml = `<BootTrigger>\n      <Enabled>true</Enabled>\n      <Delay>PT30S</Delay>\n    </BootTrigger>`;
+					} else if (triggerType === 'boot-delay') {
+						const delayRaw = await textPrompt('Delay after boot (in seconds):', '60');
+						const delaySec = Math.max(1, parseInt(delayRaw) || 60);
+						const mins = Math.floor(delaySec / 60);
+						const secs = delaySec % 60;
+						const iso = `PT${mins > 0 ? `${mins}M` : ''}${secs > 0 ? `${secs}S` : ''}`;
+						triggerXml = `<BootTrigger>\n      <Enabled>true</Enabled>\n      <Delay>${iso}</Delay>\n    </BootTrigger>`;
+					} else {
+						triggerXml = `<LogonTrigger>\n      <Enabled>true</Enabled>\n    </LogonTrigger>`;
+					}
+
+					// Build task XML — avoids all quoting/escaping issues with spaces in paths
+					const taskXml = `<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
     <Description>Cloudflare Dynamic DNS Service - keeps DNS records in sync with your public IP</Description>
   </RegistrationInfo>
   <Triggers>
-    <BootTrigger>
-      <Enabled>true</Enabled>
-      <Delay>PT30S</Delay>
-    </BootTrigger>
+    ${triggerXml}
   </Triggers>
   <Principals>
     <Principal id="Author">
@@ -671,17 +689,17 @@ const runTaskSchedulerManager = async () => {
   </Actions>
 </Task>`;
 
-				// Write XML as UTF-16 LE with BOM (required by schtasks /xml)
-				const tmpXml = (process.env.TEMP || process.env.TMP || 'C:\\Temp') + '\\cdds-task.xml';
-				const bom = Buffer.from([0xFF, 0xFE]);
-				const xmlUtf16 = Buffer.from(taskXml, 'utf16le');
-				writeFileSync(tmpXml, Buffer.concat([bom, xmlUtf16]));
+					// Write XML as UTF-16 LE with BOM (required by schtasks /xml)
+					const tmpXml = (process.env.TEMP || process.env.TMP || 'C:\\Temp') + '\\cdds-task.xml';
+					const bom = Buffer.from([0xFF, 0xFE]);
+					const xmlUtf16 = Buffer.from(taskXml, 'utf16le');
+					writeFileSync(tmpXml, Buffer.concat([bom, xmlUtf16]));
 
-				execSync(`schtasks /create /tn "${TASK_NAME}" /xml "${tmpXml}" /f`);
-				try { unlinkSync(tmpXml); } catch {}
-				execSync(`schtasks /run /tn "${TASK_NAME}"`);
-				console.log('\x1b[32mSUCCESS: Task installed and started successfully!\x1b[0m');
-				logMessage(`TaskScheduler: Installed ${TASK_NAME} task`);
+					execSync(`schtasks /create /tn "${TASK_NAME}" /xml "${tmpXml}" /f`);
+					try { unlinkSync(tmpXml); } catch {}
+					execSync(`schtasks /run /tn "${TASK_NAME}"`);
+					console.log('\x1b[32mSUCCESS: Task installed and started successfully!\x1b[0m');
+					logMessage(`TaskScheduler: Installed ${TASK_NAME} task`);
 			} else if (action === 'pause') {
 				try { execSync(`schtasks /end /tn "${TASK_NAME}"`); } catch { }
 				execSync(`schtasks /change /tn "${TASK_NAME}" /disable`);
