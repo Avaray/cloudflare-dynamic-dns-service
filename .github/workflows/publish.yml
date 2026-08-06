@@ -34,7 +34,7 @@ jobs:
       # 3. If triggered manually with a version input, bump package.json version
       - name: Bump Version (manual trigger only)
         if: github.event_name == 'workflow_dispatch' && inputs.version != ''
-        run: npm version ${{ inputs.version }} --no-git-tag-version
+        run: npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
 
       # 4. Early check if version already exists on NPM
       # Compares package.json version with the latest version on NPM.
