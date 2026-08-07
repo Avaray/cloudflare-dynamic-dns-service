@@ -635,7 +635,7 @@ const runTaskSchedulerManager = async () => {
 
 					// Ask about startup trigger
 					const triggerType = await selectPrompt('When should the service start?', [
-						{ label: 'On system boot (recommended)', value: 'boot' },
+						{ label: 'On system boot', value: 'boot' },
 						{ label: 'On system boot with custom delay', value: 'boot-delay' },
 						{ label: 'On user logon', value: 'logon' },
 					]);
