@@ -137,4 +137,4 @@ CDDS_LOGS_DIR=/var/log/cdds
 All notable changes to this project are documented in the [CHANGELOG.md](CHANGELOG.md) file.
 
 ## 📝 License
-[MIT License](LICENSE)
+This project is licensed under the [MIT License](LICENSE)
