@@ -7,12 +7,12 @@ If your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) frequentl
 
 ## 🚀 Features
 
-- **Interactive [CLI](https://en.wikipedia.org/wiki/Command-line_interface) Setup Wizard:** Zero manual `.env` file editing. Just type `cdds` and follow the terminal UI to configure everything.
+- **Interactive [CLI](https://en.wikipedia.org/wiki/Command-line_interface) Setup Wizard:** Just type `cdds` in your terminal and answer a few simple questions. No manual editing of configuration files is required.
 - **Service Manager Integrations:** Built-in tools to easily manage the DDNS background service depending on your operating system:
-  - **Native Daemon Mode:** Run detached natively (no external tools required).
-  - **[Launchd](https://en.wikipedia.org/wiki/Launchd) (macOS LaunchDaemon):** Runs as a system service at boot, works in headless SSH environments (requires `sudo`).
-  - **[Windows Task Scheduler](https://en.wikipedia.org/wiki/Windows_Task_Scheduler):** Auto-installs and runs on system boot (requires Administrator).
+  - **Native Daemon Mode:** Runs in the background (no extra tools required).
   - **[Systemd Service](https://en.wikipedia.org/wiki/Systemd):** Native Linux background service integration (requires `sudo`).
+  - **[Windows Task Scheduler](https://en.wikipedia.org/wiki/Windows_Task_Scheduler):** Sets itself up to run automatically as soon as Windows starts or you log in (requires Administrator rights).
+  - **[Launchd](https://en.wikipedia.org/wiki/Launchd) (macOS LaunchDaemon):** Runs as a system service at boot (requires `sudo`).
   - **[PM2](https://pm2.keymetrics.io/):** Node.js ecosystem process manager integration.
 - **Smart DNS Management:**
   - **Dual-Stack Support:** Choose between `ipv4` (A records), `ipv6` (AAAA records), or `both` simultaneously.
