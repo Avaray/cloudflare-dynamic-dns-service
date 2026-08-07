@@ -12,7 +12,7 @@ If your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) frequentl
   - **Native Daemon Mode:** Runs in the background (no extra tools required).
   - **[Systemd Service](https://en.wikipedia.org/wiki/Systemd):** Native Linux background service integration (requires `sudo`).
   - **[Windows Task Scheduler](https://en.wikipedia.org/wiki/Windows_Task_Scheduler):** Sets itself up to run automatically as soon as Windows starts or you log in (requires Administrator rights).
-  - **[Launchd](https://en.wikipedia.org/wiki/Launchd) (macOS LaunchDaemon):** Runs as a system service at boot (requires `sudo`).
+  - **[Launchd](https://en.wikipedia.org/wiki/Launchd):** On macOS, it uses LaunchDaemon to start the service in the background (requires `sudo`).
   - **[PM2](https://pm2.keymetrics.io/):** Node.js ecosystem process manager integration.
 - **Smart DNS Management:**
   - **Dual-Stack Support:** Choose between `ipv4` (A records), `ipv6` (AAAA records), or `both` simultaneously.
