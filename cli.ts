@@ -1061,6 +1061,9 @@ const checkForUpdates = async () => {
 		} else if (execPath.includes('.pnpm') || execPath.includes('pnpm')) {
 			pmName = 'pnpm';
 			installCmd = 'pnpm add -g cloudflare-dynamic-dns-service@latest';
+		} else if (execPath.includes('.deno') || execPath.includes('deno')) {
+			pmName = 'Deno';
+			installCmd = 'deno install -gf npm:cloudflare-dynamic-dns-service@latest';
 		}
 
 		// Fallback check: if NPM is selected but not installed, try to use Bun if available
