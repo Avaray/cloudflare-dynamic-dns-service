@@ -1060,14 +1060,119 @@ const checkForUpdates = async () => {
 			{ label: 'No, maybe later', value: 'no' }
 		]);
 
-		if (action === 'yes') {
-			console.log(`\nRunning: ${installCmd}`);
-			execSync(installCmd, { stdio: 'inherit' });
-			console.log(`\n\x1b[32mSuccessfully upgraded to v${latestVersion}!\x1b[0m`);
-			console.log('Please note: if you have services running (PM2, Systemd, Task Scheduler), you may need to restart them manually for the changes to take effect.');
-			await pausePrompt();
-			process.exit(0);
+		if (action !== 'yes') return;
+
+		console.log(`\nRunning: ${installCmd}`);
+		execSync(installCmd, { stdio: 'inherit' });
+		console.log(`\n\x1b[32mSuccessfully upgraded to v${latestVersion}!\x1b[0m`);
+
+		// --- Detect running services and offer restart ---
+		type RunningService = { label: string; restart: () => void };
+		const runningServices: RunningService[] = [];
+
+		// Built-in Daemon
+		try {
+			if (await fileExists(getPidFile())) {
+				const pid = parseInt(await fsPromises.readFile(getPidFile(), 'utf8'), 10);
+				if (pid && !isNaN(pid)) {
+					try {
+						process.kill(pid, 0); // 0 = just check if process exists
+						runningServices.push({
+							label: 'Built-in Daemon',
+							restart: () => {
+								process.kill(pid, 'SIGTERM');
+							}
+						});
+					} catch { }
+				}
+			}
+		} catch { }
+
+		// PM2
+		if (isPM2Available()) {
+			try {
+				const PM2_SVC = 'Cloudflare-Dynamic-DNS-Service';
+				const raw = execSync('pm2 jlist', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
+				const list = JSON.parse(raw) as any[];
+				const cddsProc = list.find((p: any) => p.name === PM2_SVC && p.pm2_env?.status === 'online');
+				if (cddsProc) {
+					runningServices.push({
+						label: 'PM2 Service',
+						restart: () => { execSync(`pm2 restart "${PM2_SVC}"`, { stdio: 'ignore' }); }
+					});
+				}
+			} catch { }
 		}
+
+		// Systemd
+		if (isSystemdAvailable()) {
+			try {
+				const SYSTEMD_SVC = 'cloudflare-dynamic-dns-service';
+				const out = execSync(`systemctl is-active ${SYSTEMD_SVC} 2>/dev/null`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+				if (out === 'active') {
+					runningServices.push({
+						label: 'Systemd Service',
+						restart: () => { execSync(`systemctl restart ${SYSTEMD_SVC}`, { stdio: 'inherit' }); }
+					});
+				}
+			} catch { }
+		}
+
+		// Windows Task Scheduler
+		if (isWindows) {
+			try {
+				const out = execSync(`schtasks /query /tn "${TASK_NAME}" /fo LIST`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+				if (out.includes('Running') || out.includes('Ready')) {
+					runningServices.push({
+						label: 'Windows Task Scheduler',
+						restart: () => {
+							try { execSync(`schtasks /end /tn "${TASK_NAME}"`, { stdio: 'ignore' }); } catch { }
+							execSync(`schtasks /run /tn "${TASK_NAME}"`, { stdio: 'ignore' });
+						}
+					});
+				}
+			} catch { }
+		}
+
+		// Launchd (macOS)
+		if (process.platform === 'darwin') {
+			const LAUNCHD_LBL = 'com.cdds.cloudflare-dynamic-dns-service';
+			try {
+				const out = execSync(`launchctl list ${LAUNCHD_LBL} 2>/dev/null`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+				if (out.includes('"PID"')) {
+					runningServices.push({
+						label: 'Launchd Service (macOS)',
+						restart: () => {
+							try { execSync(`launchctl stop ${LAUNCHD_LBL}`, { stdio: 'ignore' }); } catch { }
+							execSync(`launchctl start ${LAUNCHD_LBL}`, { stdio: 'ignore' });
+						}
+					});
+				}
+			} catch { }
+		}
+
+		if (runningServices.length > 0) {
+			const serviceList = runningServices.map(s => `  • ${s.label}`).join('\n');
+			console.log(`\nThe following services are currently running:\n${serviceList}`);
+			const restartAction = await selectPrompt('Would you like to restart them now to apply the update?', [
+				{ label: 'Yes, restart now', value: 'yes' },
+				{ label: 'No, I will restart them manually', value: 'no' }
+			]);
+			if (restartAction === 'yes') {
+				for (const svc of runningServices) {
+					try {
+						console.log(`Restarting ${svc.label}...`);
+						svc.restart();
+						console.log(`\x1b[32m✓ ${svc.label} restarted.\x1b[0m`);
+					} catch (e: any) {
+						console.log(`\x1b[31m✗ Failed to restart ${svc.label}: ${e.message}\x1b[0m`);
+					}
+				}
+			}
+		}
+
+		await pausePrompt();
+		process.exit(0);
 	} catch (err: any) {
 		console.error(`\x1b[31mFailed to check for updates: ${err.message}\x1b[0m`);
 		await pausePrompt();
