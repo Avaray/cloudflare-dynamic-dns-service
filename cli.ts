@@ -1018,6 +1018,55 @@ const runDaemonManager = async () => {
 	}
 };
 
+const checkForUpdates = async () => {
+	console.clear();
+	console.log('\x1b[34m\x1b[1m--- CDDS UPDATER ---\x1b[0m\n');
+	console.log("Checking for updates...");
+	try {
+		const pkgPath = new URL('../package.json', import.meta.url);
+		let currentVersion = '1.0.0';
+		try {
+			const pkg = JSON.parse(await fsPromises.readFile(pkgPath, 'utf8'));
+			currentVersion = pkg.version;
+		} catch (e) {}
+
+		const response = await fetch('https://registry.npmjs.org/cloudflare-dynamic-dns-service/latest');
+		if (!response.ok) throw new Error(`HTTP ${response.status}`);
+		const latestData = await response.json() as any;
+		const latestVersion = latestData.version;
+
+		if (latestVersion === currentVersion) {
+			console.log(`\x1b[32mYou are using the latest version (v${currentVersion}).\x1b[0m`);
+			await pausePrompt();
+			return;
+		}
+
+		const isBun = typeof Bun !== 'undefined';
+		const pmName = isBun ? 'Bun' : 'NPM';
+		const installCmd = isBun ? 'bun add -g cloudflare-dynamic-dns-service@latest' : 'npm install -g cloudflare-dynamic-dns-service@latest';
+
+		console.log(`\n\x1b[33mNew version available! v${currentVersion} \u2192 v${latestVersion}\x1b[0m`);
+		console.log(`Detected package manager: ${pmName}\n`);
+		
+		const action = await selectPrompt(`Would you like to upgrade to v${latestVersion} now?`, [
+			{ label: 'Yes, upgrade now', value: 'yes' },
+			{ label: 'No, maybe later', value: 'no' }
+		]);
+
+		if (action === 'yes') {
+			console.log(`\nRunning: ${installCmd}`);
+			execSync(installCmd, { stdio: 'inherit' });
+			console.log(`\n\x1b[32mSuccessfully upgraded to v${latestVersion}!\x1b[0m`);
+			console.log('Please note: if you have services running (PM2, Systemd, Task Scheduler), you may need to restart them manually for the changes to take effect.');
+			await pausePrompt();
+			process.exit(0);
+		}
+	} catch (err: any) {
+		console.error(`\x1b[31mFailed to check for updates: ${err.message}\x1b[0m`);
+		await pausePrompt();
+	}
+};
+
 // --- MAIN CLI ENTRY POINT ---
 const main = async () => {
 	// Strip out --env or -e from process.argv before parsing subcommands
@@ -1139,6 +1188,9 @@ const main = async () => {
 			console.log('v1.5.0'); // Fallback if package.json is missing
 		}
 		return;
+	} else if (command === 'upgrade') {
+		await checkForUpdates();
+		return;
 	} else if (command === 'help' || command === '--help' || command === '-h') {
 		console.log(`
 Cloudflare Dynamic DNS Service (CDDS)
@@ -1150,6 +1202,7 @@ Usage:
   cdds daemon       Run daemon in background (detached)
   cdds stop         Stop background daemon
   cdds status       Check if background daemon is running
+  cdds upgrade      Check for updates and optionally upgrade
   cdds version      Show version information (-v, --version)
   cdds help         Show this help message
 `);
@@ -1183,6 +1236,7 @@ Usage:
 				...(isMacOS ? [{ label: `Manage Launchd Service (macOS)${!_isRoot ? ' (requires root)' : ''}`, value: 'launchd', disabled: !_isRoot }] : []),
 				...(isWindows ? [{ label: `Manage Windows Task Scheduler${!_isAdmin ? ' (requires Administrator)' : ''}`, value: 'taskscheduler', disabled: !_isAdmin }] : []),
 				...(pm2Available ? [{ label: 'Manage PM2 Service', value: 'pm2' }] : []),
+				{ label: 'Check for updates', value: 'update' },
 				{ label: 'Exit', value: 'exit' }
 			];
 			
@@ -1247,6 +1301,9 @@ Usage:
 			view = 'menu';
 		} else if (view === 'launchd') {
 			await runLaunchdManager();
+			view = 'menu';
+		} else if (view === 'update') {
+			await checkForUpdates();
 			view = 'menu';
 		}
 	}
