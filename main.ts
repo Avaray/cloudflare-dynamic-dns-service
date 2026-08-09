@@ -1049,7 +1049,7 @@ export async function startDaemon() {
       console.log = (...args) => {
         if (terminalLogs) origLog.apply(console, args);
         if (actionLogs) {
-          const time = new Date().toISOString();
+          const time = datr({ precision: 'ms', separator: '-' });
           // strip ANSI escape codes for file log
           const cleanMsg = args.join(" ").replace(/\x1b\[[0-9;]*m/g, "");
           try { appendFileSync(actionLogPath, `[${time}] ${cleanMsg}\n`, "utf8"); } catch {}
@@ -1058,7 +1058,7 @@ export async function startDaemon() {
       console.error = (...args) => {
         if (terminalLogs) origError.apply(console, args);
         if (actionLogs) {
-          const time = new Date().toISOString();
+          const time = datr({ precision: 'ms', separator: '-' });
           const cleanMsg = args.join(" ").replace(/\x1b\[[0-9;]*m/g, "");
           try { appendFileSync(actionLogPath, `[${time}] [ERROR] ${cleanMsg}\n`, "utf8"); } catch {}
         }
