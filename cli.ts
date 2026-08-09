@@ -1048,9 +1048,33 @@ const checkForUpdates = async () => {
 			return;
 		}
 
-		const isBun = typeof Bun !== 'undefined';
-		const pmName = isBun ? 'Bun' : 'NPM';
-		const installCmd = isBun ? 'bun add -g cloudflare-dynamic-dns-service@latest' : 'npm install -g cloudflare-dynamic-dns-service@latest';
+		const execPath = process.argv[1] || import.meta.url;
+		let pmName = 'NPM';
+		let installCmd = 'npm install -g cloudflare-dynamic-dns-service@latest';
+
+		if (execPath.includes('.bun') || execPath.includes('bun')) {
+			pmName = 'Bun';
+			installCmd = 'bun add -g cloudflare-dynamic-dns-service@latest';
+		} else if (execPath.includes('.yarn') || execPath.includes('yarn')) {
+			pmName = 'Yarn';
+			installCmd = 'yarn global add cloudflare-dynamic-dns-service@latest';
+		} else if (execPath.includes('.pnpm') || execPath.includes('pnpm')) {
+			pmName = 'pnpm';
+			installCmd = 'pnpm add -g cloudflare-dynamic-dns-service@latest';
+		}
+
+		// Fallback check: if NPM is selected but not installed, try to use Bun if available
+		if (pmName === 'NPM') {
+			try {
+				execSync(isWindows ? 'where npm' : 'which npm', { stdio: 'ignore' });
+			} catch {
+				try {
+					execSync(isWindows ? 'where bun' : 'which bun', { stdio: 'ignore' });
+					pmName = 'Bun';
+					installCmd = 'bun add -g cloudflare-dynamic-dns-service@latest';
+				} catch {}
+			}
+		}
 
 		console.log(`\n\x1b[33mNew version available! v${currentVersion} \u2192 v${latestVersion}\x1b[0m`);
 		console.log(`Detected package manager: ${pmName}\n`);
