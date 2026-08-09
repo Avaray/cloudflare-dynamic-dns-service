@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.11.0] - 2026-08-09
+
+### Added
+- **Auto-restart capability for services:** The `cdds upgrade` command now automatically probes the system for running services (Daemon, PM2, Systemd, Task Scheduler, Launchd) after a successful update and optionally prompts the user to elegantly restart them. 
+
+### Fixed
+- Improved resilience during daemon startup (`cdds start`) and IP change logging by gracefully catching exceptions for unreachable, read-only, or non-existent `--env` and log directory paths, preventing unhandled raw stack trace crashes and returning human-readable messages instead.
+
+---
+
 ## [1.10.0] - 2026-08-09
 
 ### Added
