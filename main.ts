@@ -1025,10 +1025,20 @@ export async function startDaemon() {
     const actionLogs = process.env.CDDS_ACTION_LOGFILE?.toLowerCase() === "true";
     
     if (actionLogs || !terminalLogs) {
-      const { appendFileSync } = await import("node:fs");
+      const { appendFileSync, existsSync, mkdirSync } = await import("node:fs");
       const { resolve } = await import("node:path");
       
-      const actionLogPath = resolve(getLogDir(), "cdds-actions.log");
+      const logDir = getLogDir();
+      try {
+        if (!existsSync(logDir)) {
+          mkdirSync(logDir, { recursive: true });
+        }
+      } catch (e: any) {
+        console.error(`\x1b[31mConfiguration error: Cannot access or create log directory at '${logDir}'.\nEnsure the path is valid and you have sufficient permissions.\x1b[0m`);
+        process.exit(1);
+      }
+      
+      const actionLogPath = resolve(logDir, "cdds-actions.log");
       
       const origLog = console.log;
       const origError = console.error;
@@ -1042,7 +1052,7 @@ export async function startDaemon() {
           const time = new Date().toISOString();
           // strip ANSI escape codes for file log
           const cleanMsg = args.join(" ").replace(/\x1b\[[0-9;]*m/g, "");
-          appendFileSync(actionLogPath, `[${time}] ${cleanMsg}\n`, "utf8");
+          try { appendFileSync(actionLogPath, `[${time}] ${cleanMsg}\n`, "utf8"); } catch {}
         }
       };
       console.error = (...args) => {
@@ -1050,7 +1060,7 @@ export async function startDaemon() {
         if (actionLogs) {
           const time = new Date().toISOString();
           const cleanMsg = args.join(" ").replace(/\x1b\[[0-9;]*m/g, "");
-          appendFileSync(actionLogPath, `[${time}] [ERROR] ${cleanMsg}\n`, "utf8");
+          try { appendFileSync(actionLogPath, `[${time}] [ERROR] ${cleanMsg}\n`, "utf8"); } catch {}
         }
       };
     }
