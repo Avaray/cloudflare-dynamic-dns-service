@@ -1023,10 +1023,17 @@ const checkForUpdates = async () => {
 	console.log('\x1b[34m\x1b[1m--- CDDS UPDATER ---\x1b[0m\n');
 	console.log("Checking for updates...");
 	try {
-		const pkgPath = new URL('../package.json', import.meta.url);
 		let currentVersion = '1.0.0';
 		try {
-			const pkg = JSON.parse(await fsPromises.readFile(pkgPath, 'utf8'));
+			let pkgPath = new URL('../package.json', import.meta.url);
+			let fileContent = '';
+			try {
+				fileContent = await fsPromises.readFile(pkgPath, 'utf8');
+			} catch {
+				pkgPath = new URL('./package.json', import.meta.url);
+				fileContent = await fsPromises.readFile(pkgPath, 'utf8');
+			}
+			const pkg = JSON.parse(fileContent);
 			currentVersion = pkg.version;
 		} catch (e) {}
 
@@ -1181,8 +1188,15 @@ const main = async () => {
 		return;
 	} else if (command === 'version' || command === '--version' || command === '-v') {
 		try {
-			const pkgPath = new URL('../package.json', import.meta.url);
-			const pkg = JSON.parse(await fsPromises.readFile(pkgPath, 'utf8'));
+			let pkgPath = new URL('../package.json', import.meta.url);
+			let fileContent = '';
+			try {
+				fileContent = await fsPromises.readFile(pkgPath, 'utf8');
+			} catch {
+				pkgPath = new URL('./package.json', import.meta.url);
+				fileContent = await fsPromises.readFile(pkgPath, 'utf8');
+			}
+			const pkg = JSON.parse(fileContent);
 			console.log(`v${pkg.version}`);
 		} catch (err) {
 			console.log('v1.5.0'); // Fallback if package.json is missing
