@@ -24,27 +24,19 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v7
 
-      # 2. Setup Node.js (Needed to securely interact with NPM registry)
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-
       # 3. If triggered manually with a version input, bump package.json version
       - name: Bump Version (manual trigger only)
         if: github.event_name == 'workflow_dispatch' && inputs.version != ''
         run: npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
 
-      # 4. Early check if version already exists on NPM
-      # Compares package.json version with the latest version on NPM.
-      # If it exists, sets should_publish=false to skip the next job.
+      # 4. Check if version already exists on NPM via HTTP (no Node.js setup needed,
+      # jq and curl are pre-installed on all GitHub Actions ubuntu runners).
       - name: Check if Version Exists
         id: version_check
         run: |
-          LOCAL_VERSION=$(node -p "require('./package.json').version")
-          EXISTS=$(npm view cloudflare-dynamic-dns-service@$LOCAL_VERSION version 2>/dev/null || echo "")
-          if [ -n "$EXISTS" ]; then
+          LOCAL_VERSION=$(jq -r '.version' package.json)
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://registry.npmjs.org/cloudflare-dynamic-dns-service/$LOCAL_VERSION)
+          if [ "$HTTP_STATUS" = "200" ]; then
             echo "Version $LOCAL_VERSION is already published. Skipping."
             echo "should_publish=false" >> $GITHUB_OUTPUT
           else
