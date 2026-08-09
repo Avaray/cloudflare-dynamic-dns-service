@@ -65,20 +65,3 @@ A collection of ideas for future development of the Cloudflare Dynamic DNS Servi
 5. Show which service managers are active (PM2, Systemd, Launchd, etc.) and their status.
 
 ---
-
-## E. Auto-Updater
-
-**Problem:** Users need to manually pull changes, reinstall dependencies, rebuild, and restart services whenever a new version of CDDS is released.
-
-**Proposed solution:** A `cdds update` CLI command (also accessible from the interactive menu) that automates the entire update process.
-
-**How it works:**
-1. **Version check:** The CLI makes an HTTP request to the GitHub API (e.g., `https://api.github.com/repos/<user>/cdds/releases/latest`) and compares the latest release tag to the version in the local `package.json`.
-2. **User prompt:** If a newer version is found, the user sees: *"New version v1.8.0 found. Update now? (y/n)"*.
-3. **Automated update sequence:**
-   - `git pull` — fetch the latest changes
-   - `bun install` — install any new dependencies
-   - `bun run build` — rebuild the CLI and daemon
-4. **Service restart:** After a successful build, the updater detects which service managers are in use (Launchd, PM2, Systemd, Task Scheduler) and issues the appropriate restart command automatically so the background daemon picks up the new code without manual intervention.
-
-**Optional:** A `cdds update --check` flag that only prints whether an update is available, without actually updating — useful for scripting and monitoring.
