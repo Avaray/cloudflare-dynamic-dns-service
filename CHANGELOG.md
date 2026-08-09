@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.11.1] - 2026-08-09
+
+### Added
+- Added full support for the **Deno** runtime in the auto-updater (`cdds upgrade` will now properly use `deno install -gf`).
+
+### Fixed
+- Fixed an issue where the updater incorrectly defaulted to using NPM when executed globally via Bun/Yarn due to the `#!/usr/bin/env node` shebang hijacking the runtime. The CLI now dynamically detects the package manager based on the installation execution path.
+- Added a fallback check to verify if the `npm` binary is actually installed on the system before attempting to execute it.
+
+---
+
 ## [1.11.0] - 2026-08-09
 
 ### Added
