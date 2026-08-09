@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.0] - 2026-08-09
+
+### Added
+- **Built-in Auto-Updater:** Added a new `cdds upgrade` command (and a "Check for updates" option in the interactive CLI menu). It checks the NPM registry for new versions and prompts for a seamless in-place upgrade, automatically detecting the package manager used (Bun or NPM).
+
+### Changed
+- **Optimized CI/CD workflow:** Replaced the heavy Node.js environment setup with lightweight `curl` and `jq` for checking NPM registry versions during the GitHub Actions publish workflow, saving time on execution.
+
+### Fixed
+- Fixed an edge case in `package.json` resolution that caused `bun cli.ts -v` to report an incorrect fallback version when running the TypeScript entry point directly in a development environment.
+- Fixed manual workflow dispatch (`workflow_dispatch`) failing when triggered with an existing version by adding `--allow-same-version` to `npm version`.
+
+---
+
 ## [1.9.0] - 2026-08-06
 
 ### Added

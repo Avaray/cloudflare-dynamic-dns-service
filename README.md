@@ -75,6 +75,7 @@ Each service manager shows a live status header and dynamically presents only th
 | `cdds daemon`    | Run the DDNS updater in the **background** (detached process)    |
 | `cdds stop`      | Stop the background daemon                                       |
 | `cdds status`    | Check if the background daemon is currently running              |
+| `cdds upgrade`   | Check for updates via NPM and optionally run an in-place upgrade |
 | `cdds version`   | Print the current version (aliases: `--version`, `-v`)           |
 | `cdds help`      | Show help message (aliases: `--help`, `-h`)                      |
 
