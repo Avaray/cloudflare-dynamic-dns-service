@@ -884,15 +884,6 @@ class CloudflareDDNS {
     // Initial check on startup
     await this.performUpdate();
 
-    // Set up interval
-    setInterval(async () => {
-      if (this.config.logs) {
-        console.log("─".repeat(50));
-        console.log(`${datr({ precision: 'ms', separator: '-' })} - Running scheduled check`);
-      }
-      await this.performUpdate();
-    }, intervalMinutes * 60 * 1000);
-
     // Keep the process running
     if (this.config.logs) {
       console.log(
@@ -903,6 +894,16 @@ class CloudflareDDNS {
       if (this.ipLogPath) {
         console.log(`IP Logging to file: ${this.ipLogPath}`);
       }
+    }
+
+    // Sequential loop — next check starts only after previous one completes
+    while (true) {
+      await new Promise(resolve => setTimeout(resolve, intervalMinutes * 60 * 1000));
+      if (this.config.logs) {
+        console.log("─".repeat(50));
+        console.log(`${datr({ precision: 'ms', separator: '-' })} - Running scheduled check`);
+      }
+      await this.performUpdate();
     }
   }
 }
