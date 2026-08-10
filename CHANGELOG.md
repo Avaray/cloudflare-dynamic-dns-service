@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.11.2] - 2026-08-10
+
+### Fixed
+- Fixed inconsistent timestamp format in the `cdds-actions.log` file — both `console.log` and `console.error` overrides now use `datr()` instead of `new Date().toISOString()`, keeping all log outputs (console, `cdds-actions.log`, `cdds-ip.log`, `cli-manager.log`) consistent.
+
+---
+
 ## [1.11.1] - 2026-08-09
 
 ### Added
