@@ -1217,7 +1217,12 @@ const checkForUpdates = async () => {
 			}
 		}
 
-		await pausePrompt();
+		console.log('\n\x1b[36mRestarting CDDS CLI to apply changes...\x1b[0m');
+		await new Promise(resolve => setTimeout(resolve, 1000));
+		console.clear();
+		
+		const { spawnSync } = await import('node:child_process');
+		spawnSync(process.argv[0], [process.argv[1]], { stdio: 'inherit' });
 		process.exit(0);
 	} catch (err: any) {
 		console.error(`\x1b[31mFailed to check for updates: ${err.message}\x1b[0m`);
