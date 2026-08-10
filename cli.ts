@@ -1473,7 +1473,7 @@ Usage:
 				}
 			}
 
-			const debugTag = process.env.CDDS_DEBUG === 'true' ? ' - \x1b[33mDEBUG MODE\x1b[0m' : '';
+			const debugTag = process.env.CDDS_DEBUG === 'true' ? ' \x1b[33mDEBUG MODE\x1b[0m' : '';
 			const header = `\x1b[34m\x1b[1mCloudflare Dynamic DNS Service (CDDS)\x1b[0m${debugTag}\n` + 
 				configPathStr +
 				'\nSelect an action:';
