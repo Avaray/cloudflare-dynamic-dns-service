@@ -1222,7 +1222,20 @@ const checkForUpdates = async () => {
 		console.clear();
 		
 		const { spawnSync } = await import('node:child_process');
-		spawnSync(process.argv[0], [process.argv[1]], { stdio: 'inherit' });
+		const _execPath = process.argv[0];
+		const _scriptPath = process.argv[1];
+		console.log(`\x1b[2m[DEBUG] Spawning: ${_execPath} ${_scriptPath}\x1b[0m`);
+		
+		const child = spawnSync(_execPath, [_scriptPath], { stdio: 'inherit' });
+		
+		if (child.error) {
+			console.log(`\x1b[31m[DEBUG] spawnSync error: ${child.error.message}\x1b[0m`);
+			await pausePrompt();
+		} else if (child.status !== 0) {
+			console.log(`\x1b[31m[DEBUG] Child exited with status ${child.status}\x1b[0m`);
+			await pausePrompt();
+		}
+		
 		process.exit(0);
 	} catch (err: any) {
 		console.error(`\x1b[31mFailed to check for updates: ${err.message}\x1b[0m`);
