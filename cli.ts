@@ -15,13 +15,25 @@ import { startDaemon, validateConfig, type CloudflareConfig, detectApiKeyType } 
 
 const isWindows = process.platform === 'win32';
 
-// Early --env detection so getEnvPath works correctly before main() runs
+// Early --env and --debug detection
 {
-	const idx = process.argv.findIndex(a => a === '--env' || a === '-e');
-	if (idx !== -1 && process.argv[idx + 1]) {
-		process.env.CDDS_ENV_PATH = resolve(process.argv[idx + 1]);
+	const envIdx = process.argv.findIndex(a => a === '--env' || a === '-e');
+	if (envIdx !== -1 && process.argv[envIdx + 1]) {
+		process.env.CDDS_ENV_PATH = resolve(process.argv[envIdx + 1]);
+	}
+	
+	const debugIdx = process.argv.findIndex(a => a === '--debug' || a === '-d');
+	if (debugIdx !== -1) {
+		process.env.CDDS_DEBUG = 'true';
 	}
 }
+
+export const debugLog = (msg: string | Error) => {
+	if (process.env.CDDS_DEBUG === 'true') {
+		const text = msg instanceof Error ? (msg.stack || msg.message) : msg;
+		console.log(`\x1b[90m[DEBUG] ${text}\x1b[0m`);
+	}
+};
 
 // Early synchronous .env read — loads CDDS_LOGS_DIR (and other vars) before any
 // module-level constants are computed, so getLogDir() returns the correct path
@@ -1106,10 +1118,10 @@ const checkForUpdates = async () => {
 							label: 'Built-in Daemon',
 							restart: () => { process.kill(pid, 'SIGTERM'); }
 						});
-					} catch { }
+					} catch (err: any) { debugLog(`Built-in daemon kill test failed: ${err.message}`); }
 				}
 			}
-		} catch { }
+		} catch (err: any) { debugLog(`Built-in daemon check failed: ${err.message}`); }
 
 		// PM2 — no elevated privileges needed
 		if (isPM2Available()) {
@@ -1124,7 +1136,7 @@ const checkForUpdates = async () => {
 						restart: () => { execSync(`pm2 restart "${PM2_SVC}"`, { stdio: 'ignore' }); }
 					});
 				}
-			} catch { }
+			} catch (err: any) { debugLog(`PM2 check failed: ${err.message}`); }
 		}
 
 		// Systemd
@@ -1142,7 +1154,7 @@ const checkForUpdates = async () => {
 						locked.push('Systemd Service (requires root)');
 					}
 				}
-			} catch { }
+			} catch (err: any) { debugLog(`Systemd check failed: ${err.message}`); }
 		}
 
 		// Windows Task Scheduler
@@ -1162,7 +1174,7 @@ const checkForUpdates = async () => {
 						locked.push('Windows Task Scheduler (requires Administrator)');
 					}
 				}
-			} catch { }
+			} catch (err: any) { debugLog(`Windows Task Scheduler check failed: ${err.message}`); }
 		}
 
 		// Launchd (macOS)
@@ -1183,7 +1195,7 @@ const checkForUpdates = async () => {
 						locked.push('Launchd Service (requires root)');
 					}
 				}
-			} catch { }
+			} catch (err: any) { debugLog(`Launchd check failed: ${err.message}`); }
 		}
 
 		const totalDetected = restartable.length + locked.length;
@@ -1224,15 +1236,15 @@ const checkForUpdates = async () => {
 		const { spawnSync } = await import('node:child_process');
 		const _execPath = process.argv[0];
 		const _scriptPath = process.argv[1];
-		console.log(`\x1b[2m[DEBUG] Spawning: ${_execPath} ${_scriptPath}\x1b[0m`);
+		debugLog(`Spawning: ${_execPath} ${_scriptPath}`);
 		
 		const child = spawnSync(_execPath, [_scriptPath], { stdio: 'inherit' });
 		
 		if (child.error) {
-			console.log(`\x1b[31m[DEBUG] spawnSync error: ${child.error.message}\x1b[0m`);
+			debugLog(new Error(`spawnSync error: ${child.error.message}`));
 			await pausePrompt();
 		} else if (child.status !== 0) {
-			console.log(`\x1b[31m[DEBUG] Child exited with status ${child.status}\x1b[0m`);
+			debugLog(new Error(`Child exited with status ${child.status}`));
 			await pausePrompt();
 		}
 		
@@ -1243,16 +1255,25 @@ const checkForUpdates = async () => {
 	}
 };
 
+
 // --- MAIN CLI ENTRY POINT ---
 const main = async () => {
-	// Strip out --env or -e from process.argv before parsing subcommands
+	// Parse global flags like --env or --debug
 	while (true) {
 		const envArgIndex = process.argv.findIndex(arg => arg === '--env' || arg === '-e');
 		if (envArgIndex !== -1 && process.argv[envArgIndex + 1]) {
 			process.argv.splice(envArgIndex, 2);
-		} else {
-			break;
+			continue;
 		}
+		
+		const debugArgIndex = process.argv.findIndex(arg => arg === '--debug' || arg === '-d');
+		if (debugArgIndex !== -1) {
+			process.env.CDDS_DEBUG = 'true';
+			process.argv.splice(debugArgIndex, 1);
+			continue;
+		}
+		
+		break;
 	}
 
 	const args = process.argv.slice(2);
