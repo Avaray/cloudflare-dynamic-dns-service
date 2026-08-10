@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.11.4] - 2026-08-10
+
+### Added
+- Added a global `--debug` (or `-d`) flag to the CLI. When enabled, it outputs detailed diagnostic logs, particularly during service detection and the auto-updater's respawn phase, aiding in troubleshooting environments where terminal processes behave unexpectedly.
+
+### Changed
+- The CLI now attempts to gracefully respawn itself back into the main menu after a successful `cdds upgrade`, seamlessly restoring the interactive session.
+
 ## [1.11.3] - 2026-08-10
 
 ### Fixed
