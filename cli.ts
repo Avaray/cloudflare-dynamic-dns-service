@@ -1093,11 +1093,11 @@ const checkForUpdates = async () => {
 		execSync(installCmd, { stdio: 'inherit' });
 		console.log(`\n\x1b[32mSuccessfully upgraded to v${latestVersion}!\x1b[0m`);
 
-		// --- Detect running services and offer restart ---
+		// --- Detect running services the user CAN actually restart ---
 		type RunningService = { label: string; restart: () => void };
 		const runningServices: RunningService[] = [];
 
-		// Built-in Daemon
+		// Built-in Daemon — always restartable (owned by current user)
 		try {
 			if (await fileExists(getPidFile())) {
 				const pid = parseInt(await fsPromises.readFile(getPidFile(), 'utf8'), 10);
@@ -1106,16 +1106,14 @@ const checkForUpdates = async () => {
 						process.kill(pid, 0); // 0 = just check if process exists
 						runningServices.push({
 							label: 'Built-in Daemon',
-							restart: () => {
-								process.kill(pid, 'SIGTERM');
-							}
+							restart: () => { process.kill(pid, 'SIGTERM'); }
 						});
 					} catch { }
 				}
 			}
 		} catch { }
 
-		// PM2
+		// PM2 — no elevated privileges needed
 		if (isPM2Available()) {
 			try {
 				const PM2_SVC = 'Cloudflare-Dynamic-DNS-Service';
@@ -1131,8 +1129,8 @@ const checkForUpdates = async () => {
 			} catch { }
 		}
 
-		// Systemd
-		if (isSystemdAvailable()) {
+		// Systemd — only include if running as root
+		if (isSystemdAvailable() && _isRoot) {
 			try {
 				const SYSTEMD_SVC = 'cloudflare-dynamic-dns-service';
 				const out = execSync(`systemctl is-active ${SYSTEMD_SVC} 2>/dev/null`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
@@ -1145,8 +1143,8 @@ const checkForUpdates = async () => {
 			} catch { }
 		}
 
-		// Windows Task Scheduler
-		if (isWindows) {
+		// Windows Task Scheduler — only include if running as Administrator
+		if (isWindows && _isAdmin) {
 			try {
 				const out = execSync(`schtasks /query /tn "${TASK_NAME}" /fo LIST`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 				if (out.includes('Running') || out.includes('Ready')) {
@@ -1161,8 +1159,8 @@ const checkForUpdates = async () => {
 			} catch { }
 		}
 
-		// Launchd (macOS)
-		if (process.platform === 'darwin') {
+		// Launchd (macOS) — only include if running as root
+		if (process.platform === 'darwin' && _isRoot) {
 			const LAUNCHD_LBL = 'com.cdds.cloudflare-dynamic-dns-service';
 			try {
 				const out = execSync(`launchctl list ${LAUNCHD_LBL} 2>/dev/null`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
@@ -1179,13 +1177,15 @@ const checkForUpdates = async () => {
 		}
 
 		if (runningServices.length > 0) {
-			const serviceList = runningServices.map(s => `  • ${s.label}`).join('\n');
-			console.log(`\nThe following services are currently running:\n${serviceList}`);
-			const restartAction = await selectPrompt('Would you like to restart them now to apply the update?', [
+			// Embed the service list INTO the prompt header so it remains visible alongside the question
+			const serviceList = runningServices.map(s => `  \x1b[33m•\x1b[0m ${s.label}`).join('\n');
+			const promptHeader = `The following services are currently running:\n${serviceList}\n\nWould you like to restart them now to apply the update?`;
+			const restartAction = await selectPrompt(promptHeader, [
 				{ label: 'Yes, restart now', value: 'yes' },
 				{ label: 'No, I will restart them manually', value: 'no' }
 			]);
 			if (restartAction === 'yes') {
+				console.clear();
 				for (const svc of runningServices) {
 					try {
 						console.log(`Restarting ${svc.label}...`);
