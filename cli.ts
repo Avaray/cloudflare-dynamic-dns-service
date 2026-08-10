@@ -1086,16 +1086,14 @@ const checkForUpdates = async () => {
 			{ label: 'Yes, upgrade now', value: 'yes' },
 			{ label: 'No, maybe later', value: 'no' }
 		]);
-
-		if (action !== 'yes') return;
-
 		console.log(`\nRunning: ${installCmd}`);
 		execSync(installCmd, { stdio: 'inherit' });
 		console.log(`\n\x1b[32mSuccessfully upgraded to v${latestVersion}!\x1b[0m`);
 
-		// --- Detect running services the user CAN actually restart ---
+		// --- Detect running services (split by permission access) ---
 		type RunningService = { label: string; restart: () => void };
-		const runningServices: RunningService[] = [];
+		const restartable: RunningService[] = [];  // user has permission
+		const locked: string[] = [];               // running but no permission
 
 		// Built-in Daemon — always restartable (owned by current user)
 		try {
@@ -1103,8 +1101,8 @@ const checkForUpdates = async () => {
 				const pid = parseInt(await fsPromises.readFile(getPidFile(), 'utf8'), 10);
 				if (pid && !isNaN(pid)) {
 					try {
-						process.kill(pid, 0); // 0 = just check if process exists
-						runningServices.push({
+						process.kill(pid, 0);
+						restartable.push({
 							label: 'Built-in Daemon',
 							restart: () => { process.kill(pid, 'SIGTERM'); }
 						});
@@ -1121,7 +1119,7 @@ const checkForUpdates = async () => {
 				const list = JSON.parse(raw) as any[];
 				const cddsProc = list.find((p: any) => p.name === PM2_SVC && p.pm2_env?.status === 'online');
 				if (cddsProc) {
-					runningServices.push({
+					restartable.push({
 						label: 'PM2 Service',
 						restart: () => { execSync(`pm2 restart "${PM2_SVC}"`, { stdio: 'ignore' }); }
 					});
@@ -1129,72 +1127,93 @@ const checkForUpdates = async () => {
 			} catch { }
 		}
 
-		// Systemd — only include if running as root
-		if (isSystemdAvailable() && _isRoot) {
+		// Systemd
+		if (isSystemdAvailable()) {
 			try {
 				const SYSTEMD_SVC = 'cloudflare-dynamic-dns-service';
 				const out = execSync(`systemctl is-active ${SYSTEMD_SVC} 2>/dev/null`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
 				if (out === 'active') {
-					runningServices.push({
-						label: 'Systemd Service',
-						restart: () => { execSync(`systemctl restart ${SYSTEMD_SVC}`, { stdio: 'inherit' }); }
-					});
+					if (_isRoot) {
+						restartable.push({
+							label: 'Systemd Service',
+							restart: () => { execSync(`systemctl restart ${SYSTEMD_SVC}`, { stdio: 'inherit' }); }
+						});
+					} else {
+						locked.push('Systemd Service (requires root)');
+					}
 				}
 			} catch { }
 		}
 
-		// Windows Task Scheduler — only include if running as Administrator
-		if (isWindows && _isAdmin) {
+		// Windows Task Scheduler
+		if (isWindows) {
 			try {
 				const out = execSync(`schtasks /query /tn "${TASK_NAME}" /fo LIST`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 				if (out.includes('Running') || out.includes('Ready')) {
-					runningServices.push({
-						label: 'Windows Task Scheduler',
-						restart: () => {
-							try { execSync(`schtasks /end /tn "${TASK_NAME}"`, { stdio: 'ignore' }); } catch { }
-							execSync(`schtasks /run /tn "${TASK_NAME}"`, { stdio: 'ignore' });
-						}
-					});
+					if (_isAdmin) {
+						restartable.push({
+							label: 'Windows Task Scheduler',
+							restart: () => {
+								try { execSync(`schtasks /end /tn "${TASK_NAME}"`, { stdio: 'ignore' }); } catch { }
+								execSync(`schtasks /run /tn "${TASK_NAME}"`, { stdio: 'ignore' });
+							}
+						});
+					} else {
+						locked.push('Windows Task Scheduler (requires Administrator)');
+					}
 				}
 			} catch { }
 		}
 
-		// Launchd (macOS) — only include if running as root
-		if (process.platform === 'darwin' && _isRoot) {
+		// Launchd (macOS)
+		if (process.platform === 'darwin') {
 			const LAUNCHD_LBL = 'com.cdds.cloudflare-dynamic-dns-service';
 			try {
 				const out = execSync(`launchctl list ${LAUNCHD_LBL} 2>/dev/null`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
 				if (out.includes('"PID"')) {
-					runningServices.push({
-						label: 'Launchd Service (macOS)',
-						restart: () => {
-							try { execSync(`launchctl stop ${LAUNCHD_LBL}`, { stdio: 'ignore' }); } catch { }
-							execSync(`launchctl start ${LAUNCHD_LBL}`, { stdio: 'ignore' });
-						}
-					});
+					if (_isRoot) {
+						restartable.push({
+							label: 'Launchd Service (macOS)',
+							restart: () => {
+								try { execSync(`launchctl stop ${LAUNCHD_LBL}`, { stdio: 'ignore' }); } catch { }
+								execSync(`launchctl start ${LAUNCHD_LBL}`, { stdio: 'ignore' });
+							}
+						});
+					} else {
+						locked.push('Launchd Service (requires root)');
+					}
 				}
 			} catch { }
 		}
 
-		if (runningServices.length > 0) {
-			// Embed the service list INTO the prompt header so it remains visible alongside the question
-			const serviceList = runningServices.map(s => `  \x1b[33m•\x1b[0m ${s.label}`).join('\n');
-			const promptHeader = `The following services are currently running:\n${serviceList}\n\nWould you like to restart them now to apply the update?`;
-			const restartAction = await selectPrompt(promptHeader, [
-				{ label: 'Yes, restart now', value: 'yes' },
-				{ label: 'No, I will restart them manually', value: 'no' }
-			]);
-			if (restartAction === 'yes') {
-				console.clear();
-				for (const svc of runningServices) {
-					try {
-						console.log(`Restarting ${svc.label}...`);
-						svc.restart();
-						console.log(`\x1b[32m✓ ${svc.label} restarted.\x1b[0m`);
-					} catch (e: any) {
-						console.log(`\x1b[31m✗ Failed to restart ${svc.label}: ${e.message}\x1b[0m`);
+		const totalDetected = restartable.length + locked.length;
+		if (totalDetected > 0) {
+			const restartableLines = restartable.map(s => `  \x1b[33m•\x1b[0m ${s.label}`);
+			const lockedLines = locked.map(s => `  \x1b[2m• ${s}\x1b[0m`);
+			const allLines = [...restartableLines, ...lockedLines].join('\n');
+
+			if (restartable.length > 0) {
+				const promptHeader = `The following services are currently running:\n${allLines}\n\nWould you like to restart the available ones now?`;
+				const restartAction = await selectPrompt(promptHeader, [
+					{ label: 'Yes, restart now', value: 'yes' },
+					{ label: 'No, I will restart them manually', value: 'no' }
+				]);
+				if (restartAction === 'yes') {
+					console.clear();
+					for (const svc of restartable) {
+						try {
+							console.log(`Restarting ${svc.label}...`);
+							svc.restart();
+							console.log(`\x1b[32m✓ ${svc.label} restarted.\x1b[0m`);
+						} catch (e: any) {
+							console.log(`\x1b[31m✗ Failed to restart ${svc.label}: ${e.message}\x1b[0m`);
+						}
 					}
 				}
+			} else {
+				// Only locked services — just show info, no interactive prompt
+				const allLocked = locked.map(s => `  \x1b[2m• ${s}\x1b[0m`).join('\n');
+				console.log(`\nThe following services are running but cannot be restarted without elevated privileges:\n${allLocked}`);
 			}
 		}
 
