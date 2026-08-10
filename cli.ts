@@ -95,7 +95,7 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 			items.forEach((item, index) => {
 				if (item.disabled) {
 					// Dark gray — visually unavailable but readable
-					console.log(`  \x1b[2m${item.label}\x1b[0m`);
+					console.log(`  \x1b[90m${item.label}\x1b[0m`);
 				} else if (index === selectedIndex) {
 					console.log(`\x1b[32m❯ ${item.label}\x1b[0m`);
 				} else {
@@ -849,7 +849,7 @@ const runLaunchdManager = async () => {
 				const out = execSync(`launchctl load -w "${plistPath}" 2>&1`, { encoding: 'utf8' });
 				if (out.toLowerCase().includes('failed') || out.toLowerCase().includes('error')) throw new Error(out.trim());
 				console.log(`\x1b[32mSUCCESS: LaunchDaemon installed and started!\x1b[0m`);
-				console.log(`\x1b[2mPlist: ${plistPath}\x1b[0m`);
+				console.log(`\x1b[90mPlist: ${plistPath}\x1b[0m`);
 				logMessage(`Launchd: Installed and started ${LAUNCHD_LABEL}`);
 			} else if (action === 'reload') {
 				// Regenerate plist and reload
@@ -1201,7 +1201,7 @@ const checkForUpdates = async () => {
 		const totalDetected = restartable.length + locked.length;
 		if (totalDetected > 0) {
 			const restartableLines = restartable.map(s => `  \x1b[33m•\x1b[0m ${s.label}`);
-			const lockedLines = locked.map(s => `  \x1b[2m• ${s}\x1b[0m`);
+			const lockedLines = locked.map(s => `  \x1b[90m• ${s}\x1b[0m`);
 			const allLines = [...restartableLines, ...lockedLines].join('\n');
 
 			if (restartable.length > 0) {
@@ -1224,7 +1224,7 @@ const checkForUpdates = async () => {
 				}
 			} else {
 				// Only locked services — just show info, no interactive prompt
-				const allLocked = locked.map(s => `  \x1b[2m• ${s}\x1b[0m`).join('\n');
+				const allLocked = locked.map(s => `  \x1b[90m• ${s}\x1b[0m`).join('\n');
 				console.log(`\nThe following services are running but cannot be restarted without elevated privileges:\n${allLocked}`);
 			}
 		}
@@ -1452,7 +1452,7 @@ Usage:
 				if (configError) {
 					configPathStr = `\x1b[31mConfig: ${currentEnvPath} (Missing required fields)\x1b[0m\n`;
 				} else {
-					configPathStr = `\x1b[2mConfig: ${currentEnvPath}\x1b[0m\n`;
+					configPathStr = `\x1b[90mConfig: ${currentEnvPath}\x1b[0m\n`;
 				}
 			} else if (isCustomEnv) {
 				let accessError: any = null;
@@ -1464,7 +1464,7 @@ Usage:
 				
 				if (accessError) {
 					if (accessError.code === 'ENOENT') {
-						configPathStr = `\x1b[2mConfig: ${currentEnvPath} (File does not exist)\x1b[0m\n`;
+						configPathStr = `\x1b[90mConfig: ${currentEnvPath} (File does not exist)\x1b[0m\n`;
 					} else {
 						configPathStr = `\x1b[31mConfig: ${currentEnvPath} (Permission denied / Access error)\x1b[0m\n`;
 					}
