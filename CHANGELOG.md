@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.11.3] - 2026-08-10
+
+### Fixed
+- The `cdds upgrade` service restart prompt now correctly separates services by permission level: services the user can restart are shown with a yellow bullet, while services requiring elevated privileges (root/Administrator) are shown dimmed with a note in parentheses at the bottom of the list.
+- If only locked (no-permission) services are detected, an informational message is displayed instead of an interactive prompt.
+- The list of detected services is now embedded directly inside the `selectPrompt` header, preventing it from being cleared off-screen before the user can read it.
+
+---
+
 ## [1.11.2] - 2026-08-10
 
 ### Fixed
