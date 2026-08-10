@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.11.5] - 2026-08-10
+
+### Fixed
+- The update check interval (`CDDS_CHECK_INTERVAL`) is now counted from the **end** of each check cycle, not from the start. This prevents overlapping update cycles in cases where a single check takes longer than the configured interval.
+
+### Changed
+- Replaced all dimmed (`\x1b[2m`) text with bright-gray (`\x1b[90m`) for better readability across different terminal themes.
+- Updated package description to be more accurate and concise.
+
+---
+
 ## [1.11.4] - 2026-08-10
 
 ### Added
