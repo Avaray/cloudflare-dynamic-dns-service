@@ -131,4 +131,7 @@ CDDS_LOGS_DIR=/var/log/cdds
 All notable changes to this project are documented in the [CHANGELOG.md](CHANGELOG.md) file.
 
 ## 📝 License
-This project is licensed under the [MIT License](LICENSE)
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+*Disclaimer: This project is not affiliated with, endorsed by, or sponsored by Cloudflare, Inc. Cloudflare is a registered trademark of Cloudflare, Inc.*
