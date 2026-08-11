@@ -125,8 +125,10 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 				renderMenu();
 			} else if (key.name === 'return' || key.name === 'enter') {
 				if (items[selectedIndex].disabled) return; // safety guard
+				const selectedValue = items[selectedIndex].value;
 				cleanup();
-				resolve(items[selectedIndex].value);
+				// Flush any buffered input to prevent Enter leaking into the next prompt
+				setImmediate(() => resolve(selectedValue));
 			} else if (key.ctrl && key.name === 'c') {
 				cleanup();
 				process.exit(0);
@@ -1241,6 +1243,15 @@ const checkForUpdates = async () => {
 				const allLocked = locked.map(s => `  \x1b[90m• ${s}\x1b[0m`).join('\n');
 				console.log(`\nThe following services are running but cannot be restarted without elevated privileges:\n${allLocked}`);
 			}
+		}
+
+		const cliRestartAction = await selectPrompt('\nWould you like to restart the CLI to apply the update?', [
+			{ label: 'Yes, restart CLI now', value: 'yes' },
+			{ label: 'No, go back to main menu', value: 'no' }
+		]);
+
+		if (cliRestartAction === 'no') {
+			return;
 		}
 
 		console.log('\n\x1b[36mRestarting CDDS CLI to apply changes...\x1b[0m');
