@@ -19,7 +19,6 @@ If your [ISP](https://en.wikipedia.org/wiki/Internet_service_provider) frequentl
   - Auto-discovers Cloudflare Zone IDs.
   - Auto-detects your API credential type (Global Key vs Scoped Token).
   - Multi-target support (update multiple subdomains at once).
-  - Full support for Cloudflare's **Proxied (Orange Cloud)** status.
 
 ## 📋 Requirements
 
