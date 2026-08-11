@@ -105,14 +105,28 @@ CDDS relies on environment variables for configuration. You can provide these by
 | **`CDDS_ENV_PATH`** | Override configuration file location. Can be any file name/extension. Defaults to `.env` in the current directory. |
 | **`CDDS_LOGS_DIR`** | Override directory where logs and `.pid` files are saved. Defaults to the config file directory. |
 
-### Example `.env` File
-You can generate a `.env` file automatically using the interactive `cdds` wizard, or create one manually:
+### Example Configurations
 
+**Minimal Configuration** (using an API Token and relying on defaults):
 ```sh
-# Minimal Configuration (API Token)
 CDDS_API_KEY=YOUR_CLOUDFLARE_API_TOKEN
 CDDS_TARGETS=home.yourdomain.com
+```
+
+**Full Configuration** (with all options customized):
+```zsh
+CDDS_API_KEY=YOUR_CLOUDFLARE_GLOBAL_API_KEY
+CDDS_EMAIL=your_email@example.com
+CDDS_TARGETS=web.example.com,api.example.com
+CDDS_ZONE_ID=023e105f4ecef8ad9ca31a8372d0c353
+CDDS_TTL=120
 CDDS_CHECK_INTERVAL=10
+CDDS_IP_TYPE=both
+CDDS_LOGS=true
+CDDS_IP_LOGFILE=true
+CDDS_ACTION_LOGFILE=true
+CDDS_PROXIED=true
+CDDS_LOGS_DIR=/var/log/cdds
 ```
 
 ## 📜 Changelog
