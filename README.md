@@ -135,4 +135,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-*Disclaimer: This project is not affiliated with, endorsed by, or sponsored by Cloudflare, Inc. Cloudflare is a registered trademark of Cloudflare, Inc.*
+Disclaimer: This project is not affiliated with, endorsed by, or sponsored by Cloudflare, Inc.  
+Cloudflare is a registered trademark of Cloudflare, Inc.
