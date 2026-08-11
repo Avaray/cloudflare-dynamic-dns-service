@@ -80,58 +80,38 @@ Each service manager shows a live status header and dynamically presents only th
 | `cdds help`      | Show help message (aliases: `--help`, `-h`)                      |
 
 
-## ⚙️ Configuration (.env)
+## ⚙️ Configuration
 
-The `cdds` CLI wizard will generate a `.env` file in the **current working directory** (wherever you run `cdds` from) after you complete the interactive setup. You can override this location by setting the `CDDS_ENV_PATH` environment variable to an absolute path or by passing the `--env` option to the CLI.
+CDDS relies on environment variables for configuration. You can provide these by exporting them in your shell (e.g. `.bashrc`), or by placing them in a `.env` file.
 
-### Advanced / Environment Variables
+> **💡 Priority Rule:** System environment variables (like those exported in `.bashrc` or set by systemd) **always take precedence** over values defined in the `.env` file. The `.env` file simply acts as a fallback for missing values.
 
-- `CDDS_ENV_PATH`: Provide an absolute path to use a custom `.env` file instead of looking in the current directory.
-- `CDDS_LOGS_DIR`: Provide an absolute path to a directory where logs and PID files should be stored. Defaults to the directory containing the `.env` file. Can be set as an environment variable or directly inside the `.env` file itself.
+### Environment Variables
 
-```bash
-# Example
-CDDS_ENV_PATH="/etc/cdds/.env" CDDS_LOGS_DIR="/var/log/cdds" cdds daemon
-```
+| Variable | Description |
+| :--- | :--- |
+| **`CDDS_API_KEY`** | Cloudflare API key or token (Auto-detected based on length/format). |
+| **`CDDS_EMAIL`** | Cloudflare account email (only required if using Global API key). |
+| **`CDDS_TARGETS`** | Domains to update (comma separated, e.g., `web.example.com,api.example.com`). |
+| **`CDDS_ZONE_ID`** | Cloudflare zone ID. Auto-discovered if left empty. |
+| **`CDDS_TTL`** | DNS record TTL in seconds (default `60`). |
+| **`CDDS_CHECK_INTERVAL`** | Check interval in minutes (default `5`). |
+| **`CDDS_IP_TYPE`** | IP type to update: `ipv4`, `ipv6`, or `both` for dual-stack (default `ipv4`). |
+| **`CDDS_LOGS`** | Enable logging to console (`true`/`false`, default `true`). |
+| **`CDDS_IP_LOGFILE`** | Enable IP change logging to `cdds-ip.log` (`true`/`false`). |
+| **`CDDS_ACTION_LOGFILE`** | Enable full daemon action logging to `cdds-actions.log` (`true`/`false`). |
+| **`CDDS_PROXIED`** | Enable Cloudflare proxy (orange cloud) (`true`/`false`, default `false`). |
+| **`CDDS_ENV_PATH`** | Override `.env` location. By default, CDDS looks in the current working directory. |
+| **`CDDS_LOGS_DIR`** | Override directory where logs and `.pid` files are saved. Defaults to the `.env` directory. |
 
-| Environment Variable      | Description                                                                                                                                 |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **CDDS_API_KEY**          | Cloudflare API key or token (Auto-detected based on length/format).                                                                         |
-| **CDDS_EMAIL**            | Cloudflare account email address (only required if using Global API key).                                                                   |
-| **CDDS_TARGETS**          | Domains or subdomains to update (comma separated, e.g., `web.example.com,api.example.com`).                                                 |
-| **CDDS_ZONE_ID**          | Cloudflare zone ID where domains will be added/updated. If empty, it will be auto-discovered based on the target domain.                    |
-| **CDDS_TTL**              | Cloudflare DNS record TTL in seconds (default `60`).                                                                                        |
-| **CDDS_CHECK_INTERVAL**   | Check interval in minutes (default `5`).                                                                                                    |
-| **CDDS_IP_TYPE**          | IP type to update: `ipv4` (A records), `ipv6` (AAAA records), or `both` for dual-stack (default `ipv4`).                                   |
-| **CDDS_LOGS**             | Enable logging to console (`true` or `false`, default `true`).                                                                              |
-| **CDDS_IP_LOGFILE**       | Enable IP change logging. If `true`, IP changes are logged to `cdds-ip.log`.                                                                |
-| **CDDS_ACTION_LOGFILE**   | Enable action logging. If `true`, all daemon actions are logged to `cdds-actions.log` with timestamps.                                     |
-| **CDDS_PROXIED**          | Enable Cloudflare proxy (orange cloud) for the DNS record (`true` or `false`, default `false`).                                             |
-| **CDDS_ENV_PATH**         | Absolute path to a custom `.env` file. All state files (`cdds.pid`, logs) will be stored in the same directory as the target `.env`.       |
-| **CDDS_LOGS_DIR**         | Absolute path to a custom directory for logs and `.pid` files. Overrides the `.env` file location for state files.                          |
+### Example `.env` File
+You can generate a `.env` file automatically using the interactive `cdds` wizard, or create one manually:
 
-### Example Configurations
-
-**Minimal Configuration** (using an API Token and relying on defaults):
 ```sh
+# Minimal Configuration (API Token)
 CDDS_API_KEY=YOUR_CLOUDFLARE_API_TOKEN
 CDDS_TARGETS=home.yourdomain.com
-```
-
-**Full Configuration** (with all options customized):
-```zsh
-CDDS_API_KEY=YOUR_CLOUDFLARE_GLOBAL_API_KEY
-CDDS_EMAIL=your_email@example.com
-CDDS_TARGETS=web.example.com,api.example.com
-CDDS_ZONE_ID=023e105f4ecef8ad9ca31a8372d0c353
-CDDS_TTL=120
 CDDS_CHECK_INTERVAL=10
-CDDS_IP_TYPE=both
-CDDS_LOGS=true
-CDDS_IP_LOGFILE=true
-CDDS_ACTION_LOGFILE=true
-CDDS_PROXIED=true
-CDDS_LOGS_DIR=/var/log/cdds
 ```
 
 ## 📜 Changelog
