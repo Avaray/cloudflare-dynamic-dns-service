@@ -1,6 +1,6 @@
 {
   "name": "cloudflare-dynamic-dns-service",
-  "version": "1.12.0",
+  "version": "1.12.1",
   "description": "Monitors your IP address and updates Cloudflare DNS records automatically",
   "type": "module",
   "main": "dist/main.js",

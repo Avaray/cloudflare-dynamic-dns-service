@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.12.1] - 2026-08-12
+
+### Fixed
+- **CLI Updater**: Fixed a critical bug where selecting "No, maybe later" on the upgrade prompt would still execute the installation command.
+- **CLI Updater**: Fixed a stdin bleed-through issue where a buffered `Enter` keypress from one prompt was consumed by the immediately following prompt, causing unintended selections (e.g. auto-accepting service restart after declining the upgrade). Resolved by deferring `resolve()` with `setImmediate()` to flush the input buffer between prompts.
+- **CLI Updater**: Fixed an issue where the CLI would unconditionally restart itself after a successful upgrade regardless of user input. A dedicated prompt now correctly offers the choice to restart or return to the main menu.
+- **CLI Updater**: Fixed package manager auto-detection defaulting to NPM when running via Bun installed in a directory containing uppercase letters (e.g. `BUN`). Detection now uses runtime environment variables (`process.versions.bun`, `globalThis.Deno`) instead of case-sensitive path matching.
+
+---
+
 ## [1.12.0] - 2026-08-11
 
 ### Added
