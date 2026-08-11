@@ -208,9 +208,12 @@ const parseEnv = async (): Promise<CloudflareConfig | null> => {
 			zoneId: env.CDDS_ZONE_ID || '',
 			ttl: parseInt(env.CDDS_TTL || '60', 10),
 			checkIntervalMinutes: parseInt(env.CDDS_CHECK_INTERVAL || '5', 10),
-			logs: env.CDDS_LOGS !== 'false',
+			logs: true,
+			logLevel: (env.CDDS_LOG_LEVEL as any) ?? (env.CDDS_LOGS === 'false' ? 'error' : 'info'),
+			logFile: env.CDDS_LOG_FILE === 'true' || env.CDDS_ACTION_LOGFILE === 'true' || env.CDDS_IP_LOGFILE === 'true',
+			logFormat: (env.CDDS_LOG_FORMAT as any) ?? 'text',
+			logMaxLines: parseInt(env.CDDS_LOG_MAX_LINES ?? '1000', 10),
 			dryRun: false,
-			ipLogFile: env.CDDS_IP_LOGFILE || 'true',
 			ipType: ['ipv4', 'ipv6', 'both'].includes(env.CDDS_IP_TYPE?.toLowerCase() || '') ? env.CDDS_IP_TYPE!.toLowerCase() as any : 'ipv4',
 			proxied: env.CDDS_PROXIED === 'true'
 		};
@@ -228,8 +231,7 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	let ttl = initialConfig?.ttl?.toString() || '60';
 	let interval = initialConfig?.checkIntervalMinutes?.toString() || '5';
 	let ipType = initialConfig?.ipType || 'ipv4';
-	let logs = initialConfig?.logs !== false ? 'true' : 'false';
-	let ipLogFile = (initialConfig?.ipLogFile || 'true').toString();
+	let logs = initialConfig?.logLevel !== 'error' ? 'true' : 'false';
 	let proxied = initialConfig?.proxied ? 'true' : 'false';
 
 	clearScreen();
@@ -256,25 +258,24 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 		{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
 	], proxied === 'false' ? 1 : 0);
 
-	let actionLogFile = 'false';
+	let logFile = 'false';
 	const masterLogs = await selectPrompt('Do you want to enable logging?', [
 		{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
 	], logs === 'false' ? 1 : 0);
 
 	if (masterLogs === 'true') {
-		logs = await selectPrompt('Log everything to the terminal (console)?', [
-			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-		], logs === 'false' ? 1 : 0);
-		actionLogFile = await selectPrompt('Log all actions to a file (cdds-actions.log)?', [
+		logs = await selectPrompt('Log level:', [
+			{ label: 'Info (recommended)', value: 'info' },
+			{ label: 'Debug (verbose)', value: 'debug' },
+			{ label: 'Warn (warnings and errors only)', value: 'warn' },
+			{ label: 'Error (errors only)', value: 'error' }
+		], 0) as string;
+		logFile = await selectPrompt('Save logs to a file (cdds.log)?', [
 			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
 		]);
-		ipLogFile = await selectPrompt('Log new IP addresses to a file (cdds-ip.log)?', [
-			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-		], ipLogFile === 'false' ? 1 : 0);
 	} else {
-		logs = 'false';
-		actionLogFile = 'false';
-		ipLogFile = 'false';
+		logs = 'error';
+		logFile = 'false';
 	}
 
 	let existingLines: string[] = [];
@@ -297,9 +298,8 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	envContent += `CDDS_CHECK_INTERVAL=${interval}\n`;
 	envContent += `CDDS_IP_TYPE=${ipType}\n`;
 	envContent += `CDDS_PROXIED=${proxied}\n`;
-	envContent += `CDDS_LOGS=${logs}\n`;
-	envContent += `CDDS_ACTION_LOGFILE=${actionLogFile}\n`;
-	envContent += `CDDS_IP_LOGFILE=${ipLogFile}\n`;
+	envContent += `CDDS_LOG_LEVEL=${logs}\n`;
+	envContent += `CDDS_LOG_FILE=${logFile}\n`;
 
 	try {
 		await fsPromises.mkdir(dirname(envPath), { recursive: true });
@@ -418,7 +418,14 @@ const runSystemdManager = async () => {
 
 			if (action === 'install') {
 				const projectPath = getLogDir();
-				const bunPath = process.execPath;
+				let bunPath = process.execPath;
+				if (typeof process.versions.bun !== "undefined" && bunPath.includes("node")) {
+					try {
+						bunPath = require("child_process").execSync("which bun", { encoding: "utf8" }).trim();
+					} catch (e) {
+						bunPath = "bun"; // fallback
+					}
+				}
 				const scriptPath = import.meta.url ? new URL(import.meta.url).pathname : process.argv[1];
 				const envPath = getEnvPath();
 				const serviceContent = `[Unit]
@@ -433,6 +440,7 @@ ExecStart=${bunPath} ${scriptPath} start --env ${envPath}
 Restart=on-failure
 RestartSec=10
 Environment="CDDS_ENV_PATH=${envPath}"
+Environment="CDDS_SYSTEMD_MODE=true"
 StandardOutput=syslog
 StandardError=syslog
 SyslogIdentifier=${SERVICE_NAME}
@@ -1060,22 +1068,22 @@ const checkForUpdates = async () => {
 			return;
 		}
 
-		const execPath = process.argv[1] || import.meta.url;
+		const scriptPath = (process.argv[1] || import.meta.url).toLowerCase();
 		let pmName = 'NPM';
 		let installCmd = 'npm install -g cloudflare-dynamic-dns-service@latest';
 
-		if (execPath.includes('.bun') || execPath.includes('bun')) {
+		if (typeof (process.versions as any)?.bun !== 'undefined') {
 			pmName = 'Bun';
 			installCmd = 'bun add -g cloudflare-dynamic-dns-service@latest';
-		} else if (execPath.includes('.yarn') || execPath.includes('yarn')) {
-			pmName = 'Yarn';
-			installCmd = 'yarn global add cloudflare-dynamic-dns-service@latest';
-		} else if (execPath.includes('.pnpm') || execPath.includes('pnpm')) {
-			pmName = 'pnpm';
-			installCmd = 'pnpm add -g cloudflare-dynamic-dns-service@latest';
-		} else if (execPath.includes('.deno') || execPath.includes('deno')) {
+		} else if (typeof (globalThis as any).Deno !== 'undefined') {
 			pmName = 'Deno';
 			installCmd = 'deno install -gf npm:cloudflare-dynamic-dns-service@latest';
+		} else if (scriptPath.includes('.yarn') || scriptPath.includes('yarn')) {
+			pmName = 'Yarn';
+			installCmd = 'yarn global add cloudflare-dynamic-dns-service@latest';
+		} else if (scriptPath.includes('.pnpm') || scriptPath.includes('pnpm')) {
+			pmName = 'pnpm';
+			installCmd = 'pnpm add -g cloudflare-dynamic-dns-service@latest';
 		}
 
 		// Fallback check: if NPM is selected but not installed, try to use Bun if available
@@ -1098,6 +1106,12 @@ const checkForUpdates = async () => {
 			{ label: 'Yes, upgrade now', value: 'yes' },
 			{ label: 'No, maybe later', value: 'no' }
 		]);
+
+		if (action === 'no') {
+			console.log(`\n\x1b[33mUpgrade skipped.\x1b[0m`);
+			return;
+		}
+
 		console.log(`\nRunning: ${installCmd}`);
 		execSync(installCmd, { stdio: 'inherit' });
 		console.log(`\n\x1b[32mSuccessfully upgraded to v${latestVersion}!\x1b[0m`);

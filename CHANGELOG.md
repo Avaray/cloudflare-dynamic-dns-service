@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.12.0] - 2026-08-11
+
+### Added
+- **Advanced Logging System**: Introduced `CDDS_LOG_LEVEL`, `CDDS_LOG_FORMAT` (text/json), and `CDDS_LOG_MAX_LINES` for finer control over application logs.
+- **Systemd Integration**: Added `CDDS_SYSTEMD_MODE` to automatically disable redundant file logging when running under systemd journald.
+- **CLI Wizard**: Updated the interactive configuration wizard (`cdds start`) to prompt for advanced logging preferences (`CDDS_LOG_LEVEL` and `CDDS_LOG_FILE`).
+
+### Changed
+- Refactored `startDaemon` to fully intercept all console methods (`log`, `error`, `warn`, `debug`), centralizing the output formatting.
+- **Strict ESM Compatibility**: Replaced dynamic `require()` calls with native `node:` imports to ensure 100% strict cross-runtime compatibility without relying on bundler polyfills (works natively in Node.js, Bun, and Deno).
+
+### Fixed
+- **CLI Updater**: Fixed a bug where selecting "No, maybe later" during an update check would still force the upgrade process to execute.
+- **CLI Updater**: Fixed package manager auto-detection during upgrades. It now reliably detects Bun and Deno by their runtime environment variables instead of relying on case-sensitive file path string matching, resolving an issue where the updater would erroneously default to NPM when installed via Bun in uppercase directories.
+- **Performance I/O Bottleneck**: Optimized file logging by using fast appending (`appendFileSync`) instead of synchronous whole-file rewriting. Log truncation based on `CDDS_LOG_MAX_LINES` is now periodically executed (every 100 lines) to prevent event loop blocking.
+- **Log Path Resolution**: Fixed an issue where providing an absolute file path to `CDDS_LOG_FILE` would fail if the target directory did not exist. The directory is now correctly parsed and created automatically.
+- **Systemd Bun Path**: Fixed an issue in `cdds upgrade` / `cdds start` where the systemd service installation might use an incorrect fallback path for the `bun` binary.
+
+---
+
 ## [1.11.5] - 2026-08-10
 
 ### Fixed

@@ -1,6 +1,6 @@
 import gip from "gip";
 import datr from "datr";
-import { promises as fs, readFileSync } from "node:fs";
+import { promises as fs, readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve, dirname } from "node:path";
 
@@ -32,16 +32,20 @@ try {
   // .env file is optional, ignore if not found
 }
 
+type LogLevel = "debug" | "info" | "warn" | "error";
+
 interface CloudflareConfig {
   apiKey: string;
   apiKeyType: "key" | "token";
   checkIntervalMinutes?: number;
   dryRun: boolean;
   email: string;
-  ipLogFile?: string | boolean;
   ipType?: "ipv4" | "ipv6" | "both";
-  logs: boolean;
-  actionLogFile?: string | boolean;
+  logs: boolean; // Kept for backward compat within the class
+  logFile: boolean | string;
+  logFormat: "text" | "json";
+  logLevel: LogLevel;
+  logMaxLines: number;
   proxied?: boolean;
   recordId?: string;
   targets: string[];
@@ -90,7 +94,6 @@ class CloudflareDDNS {
   private config: CloudflareConfig;
   private currentIP: { ipv4: string | null; ipv6: string | null } = { ipv4: null, ipv6: null };
   private lastKnownIP: { ipv4: string | null; ipv6: string | null } = { ipv4: null, ipv6: null };
-  private ipLogPath: string = "";
   private targetInfos: TargetInfo[] = [];
 
   constructor(config: CloudflareConfig) {
@@ -98,65 +101,9 @@ class CloudflareDDNS {
       checkIntervalMinutes: 5,
       ...config,
     };
-    this.initializeIPLogging();
   }
 
-  // Initialize IP logging path
-  private initializeIPLogging(): void {
-    if (!this.config.ipLogFile) {
-      return;
-    }
 
-    try {
-      if (this.config.ipLogFile === true) {
-        this.ipLogPath = resolve(getLogDir(), "cdds-ip.log");
-      } else if (typeof this.config.ipLogFile === "string") {
-        this.ipLogPath = resolve(getLogDir(), this.config.ipLogFile);
-      }
-    } catch (error) {
-      if (this.config.logs) {
-        console.error(
-          `Error initializing IP logging: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-      this.ipLogPath = "";
-    }
-  }
-
-  // Log IP change to file
-  private async logIPChange(newIP: { ipv4: string | null; ipv6: string | null }): Promise<void> {
-    if (!this.ipLogPath) return;
-
-    try {
-      const timeString = datr({ precision: 'ms', separator: '-' });
-      
-      const parts = [];
-      if (newIP.ipv4) parts.push(`IPv4: ${newIP.ipv4}`);
-      if (newIP.ipv6) parts.push(`IPv6: ${newIP.ipv6}`);
-      if (parts.length === 0) return;
-      const ipString = parts.join(", ");
-
-      const logEntry = `${timeString} > ${ipString}\n`;
-
-      let existingContent = "";
-      try {
-        existingContent = await fs.readFile(this.ipLogPath, "utf8");
-      } catch (err: any) {
-        if (err.code !== "ENOENT") throw err;
-      }
-      await fs.writeFile(this.ipLogPath, existingContent + logEntry, "utf8");
-
-      if (this.config.logs) {
-        console.log(`IP change logged to file: ${timeString} > ${ipString}`);
-      }
-    } catch (error) {
-      if (this.config.logs) {
-        console.error(
-          `Error logging IP change: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    }
-  }
 
   // Get current external IP using gip
   private async getCurrentIP(): Promise<{ ipv4: string | null; ipv6: string | null }> {
@@ -835,12 +782,10 @@ class CloudflareDDNS {
         console.log(`Current external IP(s): ${ips.join(", ")}`);
       }
 
-      // Check if IP changed and log it
+      // Check if IP changed (logging is handled by monkey-patching in startDaemon)
       const ipv4Changed = this.lastKnownIP.ipv4 !== null && this.currentIP.ipv4 !== this.lastKnownIP.ipv4;
       const ipv6Changed = this.lastKnownIP.ipv6 !== null && this.currentIP.ipv6 !== this.lastKnownIP.ipv6;
-      if (ipv4Changed || ipv6Changed) {
-        await this.logIPChange(this.currentIP);
-      }
+
 
       // Process each target
       for (const target of this.config.targets) {
@@ -891,9 +836,7 @@ class CloudflareDDNS {
           this.config.targets.length > 1 ? "s" : ""
         } every ${intervalMinutes} minutes...`,
       );
-      if (this.ipLogPath) {
-        console.log(`IP Logging to file: ${this.ipLogPath}`);
-      }
+
     }
 
     // Sequential loop — next check starts only after previous one completes
@@ -930,18 +873,6 @@ function getTargets(): string[] {
   return ["subdomain.yourdomain.com"];
 }
 
-// Parse IP log file configuration
-function getIPLogFileConfig(): string | boolean | undefined {
-  const envValue = process.env.CDDS_IP_LOGFILE;
-  if (!envValue) {
-    return undefined;
-  }
-  if (envValue.toLowerCase() === "true") {
-    return true;
-  }
-  return envValue;
-}
-
 // Auto-detect API key type
 function detectApiKeyType(key: string): "key" | "token" {
   if (/^[0-9a-f]{37}$/i.test(key)) {
@@ -951,16 +882,28 @@ function detectApiKeyType(key: string): "key" | "token" {
 }
 
 // Configuration
+const isSystemd = process.env.CDDS_SYSTEMD_MODE === "true";
+const wantsLegacyLog = process.env.CDDS_ACTION_LOGFILE === "true" || process.env.CDDS_IP_LOGFILE === "true";
+let logFileValue: boolean | string = false;
+if (process.env.CDDS_LOG_FILE) {
+  if (process.env.CDDS_LOG_FILE.toLowerCase() === "true") logFileValue = true;
+  else if (process.env.CDDS_LOG_FILE.toLowerCase() !== "false") logFileValue = process.env.CDDS_LOG_FILE;
+} else if (wantsLegacyLog && !isSystemd) {
+  logFileValue = true;
+}
+
 const config: CloudflareConfig = {
   apiKey: process.env.CDDS_API_KEY ?? "your_cloudflare_api_key_here",
   apiKeyType: detectApiKeyType(process.env.CDDS_API_KEY ?? "your_cloudflare_api_key_here"),
   checkIntervalMinutes: parseInt(process.env.CDDS_CHECK_INTERVAL ?? "5"),
   dryRun: process.argv.includes("--dry-run"),
   email: process.env.CDDS_EMAIL ?? "your_email@example.com",
-  ipLogFile: getIPLogFileConfig(),
   ipType: (["ipv4", "ipv6", "both"].includes(process.env.CDDS_IP_TYPE?.toLowerCase() || "") ? process.env.CDDS_IP_TYPE!.toLowerCase() as any : "ipv4"),
-  logs: process.env.CDDS_LOGS?.toLowerCase() === "true",
-  actionLogFile: process.env.CDDS_ACTION_LOGFILE?.toLowerCase() === "true",
+  logs: true, // Always true for the class, filtering is handled by monkey-patch in startDaemon
+  logLevel: (process.env.CDDS_LOG_LEVEL as LogLevel) ?? (process.env.CDDS_LOGS === "false" ? "error" : "info"),
+  logFile: logFileValue,
+  logFormat: (process.env.CDDS_LOG_FORMAT as "text" | "json") ?? "text",
+  logMaxLines: parseInt(process.env.CDDS_LOG_MAX_LINES ?? "1000"),
   proxied: process.env.CDDS_PROXIED?.toLowerCase() === "true",
   targets: getTargets(),
   ttl: parseInt(process.env.CDDS_TTL ?? "60"),
@@ -1021,72 +964,106 @@ export { CloudflareDDNS, detectApiKeyType, getTargets, validateConfig, type Clou
 
 // Main execution
 export async function startDaemon() {
+  const logLevelOrder: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
+  const logDir = getLogDir();
+  let logFilePath = resolve(logDir, "cdds.log");
 
-    const terminalLogs = process.env.CDDS_LOGS?.toLowerCase() === "true";
-    const actionLogs = process.env.CDDS_ACTION_LOGFILE?.toLowerCase() === "true";
-    
-    if (actionLogs || !terminalLogs) {
-      const { appendFileSync, existsSync, mkdirSync } = await import("node:fs");
-      const { resolve } = await import("node:path");
-      
-      const logDir = getLogDir();
-      try {
-        if (!existsSync(logDir)) {
-          mkdirSync(logDir, { recursive: true });
-        }
-      } catch (e: any) {
-        console.error(`\x1b[31mConfiguration error: Cannot access or create log directory at '${logDir}'.\nEnsure the path is valid and you have sufficient permissions.\x1b[0m`);
-        process.exit(1);
-      }
-      
-      const actionLogPath = resolve(logDir, "cdds-actions.log");
-      
-      const origLog = console.log;
-      const origError = console.error;
-      
-      // Override config.logs so that the class actually calls console.log
-      config.logs = terminalLogs || actionLogs;
-      
-      console.log = (...args) => {
-        if (terminalLogs) origLog.apply(console, args);
-        if (actionLogs) {
-          const time = datr({ precision: 'ms', separator: '-' });
-          // strip ANSI escape codes for file log
-          const cleanMsg = args.join(" ").replace(/\x1b\[[0-9;]*m/g, "");
-          try { appendFileSync(actionLogPath, `[${time}] ${cleanMsg}\n`, "utf8"); } catch {}
-        }
-      };
-      console.error = (...args) => {
-        if (terminalLogs) origError.apply(console, args);
-        if (actionLogs) {
-          const time = datr({ precision: 'ms', separator: '-' });
-          const cleanMsg = args.join(" ").replace(/\x1b\[[0-9;]*m/g, "");
-          try { appendFileSync(actionLogPath, `[${time}] [ERROR] ${cleanMsg}\n`, "utf8"); } catch {}
-        }
-      };
+  if (config.logFile) {
+    if (typeof config.logFile === "string") {
+      logFilePath = resolve(logDir, config.logFile);
     }
+    const targetDir = dirname(logFilePath);
+    try {
+      if (!existsSync(targetDir)) {
+        mkdirSync(targetDir, { recursive: true });
+      }
+    } catch (e: any) {
+      process.stderr.write(`Configuration error: Cannot access or create log directory at '${targetDir}'.\nEnsure the path is valid.\n`);
+      process.exit(1);
+    }
+  }
+
+  const origLog = console.log;
+  const origError = console.error;
+  const origWarn = console.warn;
+  const origDebug = console.debug;
+
+  let logLinesCounter = 0;
+
+  function writeLog(level: LogLevel, tag: string, args: any[]) {
+    if (logLevelOrder[level] < logLevelOrder[config.logLevel]) return;
+
+    const ts = datr({ precision: "ms", separator: "-" });
+    const rawMsg = args.map((a) => (typeof a === "string" ? a : String(a))).join(" ");
+    const cleanMsg = rawMsg.replace(/\x1b\[[0-9;]*m/g, "");
+
+    let consoleOut = "";
+    let fileOut = "";
+
+    if (config.logFormat === "json") {
+      const obj = { timestamp: ts, level: level.toUpperCase(), tag, message: cleanMsg };
+      consoleOut = JSON.stringify(obj);
+      fileOut = consoleOut;
+    } else {
+      let color = "";
+      if (level === "error") color = "\x1b[31m";
+      else if (level === "warn") color = "\x1b[33m";
+      else if (level === "debug") color = "\x1b[90m";
+      else if (tag === "IP_CHANGE") color = "\x1b[32m";
+      const reset = "\x1b[0m";
+      consoleOut = `${color}[${ts}] [${level.toUpperCase()}] [${tag}] ${rawMsg}${reset}`;
+      fileOut = `[${ts}] [${level.toUpperCase()}] [${tag}] ${cleanMsg}`;
+    }
+
+    if (level === "error") origError(consoleOut);
+    else if (level === "warn") origWarn(consoleOut);
+    else if (level === "debug") origDebug(consoleOut);
+    else origLog(consoleOut);
+
+    if (config.logFile) {
+      try {
+        appendFileSync(logFilePath, fileOut + "\n", "utf8");
+        logLinesCounter++;
+        
+        // Truncate only periodically (e.g. every 100 lines) to avoid I/O bottlenecks
+        if (logLinesCounter > 100) {
+          logLinesCounter = 0;
+          let existing = "";
+          try { existing = readFileSync(logFilePath, "utf8"); } catch (e: any) { if (e.code !== "ENOENT") throw e; }
+          const lines = existing.split("\n").filter((l: string) => l.length > 0);
+          if (lines.length > config.logMaxLines) {
+            lines.splice(0, lines.length - config.logMaxLines);
+            writeFileSync(logFilePath, lines.join("\n") + "\n", "utf8");
+          }
+        }
+      } catch (_) {}
+    }
+  }
+
+  console.log = (...args) => {
+    const isIPChange = typeof args[0] === "string" && args[0].includes("IP address changed for");
+    writeLog("info", isIPChange ? "IP_CHANGE" : "SYSTEM", args);
+  };
+  console.error = (...args) => writeLog("error", "SYSTEM", args);
+  console.warn = (...args) => writeLog("warn", "SYSTEM", args);
+  console.debug = (...args) => writeLog("debug", "SYSTEM", args);
 
   try {
     validateConfig(config);
     const ddnsService = new CloudflareDDNS(config);
     await ddnsService.start();
   } catch (error) {
-    console.error(
-      `Configuration error: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    console.error(`Configuration error: ${error instanceof Error ? error.message : String(error)}`);
     console.error(`\nEnvironment variables you can set:`);
-    console.error(
-      `CDDS_EMAIL=your_email@example.com (required for API key type)`,
-    );
+    console.error(`CDDS_EMAIL=your_email@example.com`);
     console.error(`CDDS_API_KEY=your_api_key_or_token`);
-    console.error(
-      `CDDS_TARGETS=subdomain.domain.com,another.domain.com (comma-separated)`,
-    );
+    console.error(`CDDS_TARGETS=subdomain.domain.com,another.domain.com`);
     console.error(`CDDS_ZONE_ID=optional_zone_id`);
     console.error(`CDDS_TTL=300 (in seconds)`);
-    console.error(`CDDS_LOGS=true`);
+    console.error(`CDDS_LOG_LEVEL=info (debug, info, warn, error)`);
+    console.error(`CDDS_LOG_FILE=true`);
+    console.error(`CDDS_LOG_FORMAT=text (text, json)`);
     console.error(`CDDS_CHECK_INTERVAL=5`);
-    console.error(`CDDS_IP_LOGFILE=true (or path to directory/file)`);
     process.exit(1);
   }
 }
