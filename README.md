@@ -98,8 +98,8 @@ CDDS relies on environment variables for configuration. You can provide these by
 | **`CDDS_IP_TYPE`** | IP type to update: `ipv4`, `ipv6`, or `both` for dual-stack (default `ipv4`). |
 | **`CDDS_LOG_LEVEL`** | Verbosity of the log output (`debug`, `info`, `warn`, `error`). Default `info`. |
 | **`CDDS_LOG_FILE`** | Save logs to file. Accepts `true`/`false` (defaults to `cdds.log` in log directory) or a custom absolute/relative path (e.g. `/var/log/custom.log`). The target directory will be created automatically. Note: Defaults to `false` when running as a systemd service. |
-| **`CDDS_LOG_FORMAT`** | **[Advanced]** Format of the log output (`text`, `json`). Default `text`. |
-| **`CDDS_LOG_MAX_LINES`** | **[Advanced]** Maximum number of lines to keep in the log file before older lines are removed. Default `1000`. |
+| **`CDDS_LOG_FORMAT`** | Format of the log output (`text`, `json`). Default `text`. |
+| **`CDDS_LOG_MAX_LINES`** | Maximum number of lines to keep in the log file before older lines are removed. Default `1000`. |
 | **`CDDS_PROXIED`** | Enable Cloudflare proxy (orange cloud) (`true`/`false`, default `false`). |
 | **`CDDS_ENV_PATH`** | Override configuration file location. Can be any file name/extension. Defaults to `.env` in the current directory. |
 | **`CDDS_LOGS_DIR`** | Override directory where logs and `.pid` files are saved. Defaults to the config file directory. |
