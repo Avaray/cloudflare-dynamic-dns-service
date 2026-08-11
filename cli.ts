@@ -1243,6 +1243,15 @@ const checkForUpdates = async () => {
 			}
 		}
 
+		const cliRestartAction = await selectPrompt('\nWould you like to restart the CLI to apply the update?', [
+			{ label: 'Yes, restart CLI now', value: 'yes' },
+			{ label: 'No, go back to main menu', value: 'no' }
+		]);
+
+		if (cliRestartAction === 'no') {
+			return;
+		}
+
 		console.log('\n\x1b[36mRestarting CDDS CLI to apply changes...\x1b[0m');
 		await new Promise(resolve => setTimeout(resolve, 1000));
 		console.clear();
