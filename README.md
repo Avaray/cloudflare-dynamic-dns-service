@@ -82,7 +82,9 @@ Each service manager shows a live status header and dynamically presents only th
 
 ## ⚙️ Configuration
 
-CDDS relies on environment variables for configuration. You can provide these by exporting them in your shell (e.g. `.bashrc`), or by placing them in a `.env` file.
+CDDS relies on environment variables for configuration. You can provide these by exporting them in your shell (e.g. `.bashrc`), or by placing them in a configuration file (by default, a `.env` file in the current directory).
+
+> **💡 Custom Config File:** You can use any filename or extension for your configuration file (e.g., `/etc/cdds.conf`). Just point to it using the `CDDS_ENV_PATH` variable. CDDS will seamlessly read from and write to that file.
 
 > **💡 Priority Rule:** System environment variables (like those exported in `.bashrc` or set by systemd) **always take precedence** over values defined in the `.env` file. The `.env` file simply acts as a fallback for missing values.
 
@@ -101,8 +103,8 @@ CDDS relies on environment variables for configuration. You can provide these by
 | **`CDDS_IP_LOGFILE`** | Enable IP change logging to `cdds-ip.log` (`true`/`false`). |
 | **`CDDS_ACTION_LOGFILE`** | Enable full daemon action logging to `cdds-actions.log` (`true`/`false`). |
 | **`CDDS_PROXIED`** | Enable Cloudflare proxy (orange cloud) (`true`/`false`, default `false`). |
-| **`CDDS_ENV_PATH`** | Override `.env` location. By default, CDDS looks in the current working directory. |
-| **`CDDS_LOGS_DIR`** | Override directory where logs and `.pid` files are saved. Defaults to the `.env` directory. |
+| **`CDDS_ENV_PATH`** | Override configuration file location. Can be any file name/extension. Defaults to `.env` in the current directory. |
+| **`CDDS_LOGS_DIR`** | Override directory where logs and `.pid` files are saved. Defaults to the config file directory. |
 
 ### Example `.env` File
 You can generate a `.env` file automatically using the interactive `cdds` wizard, or create one manually:
