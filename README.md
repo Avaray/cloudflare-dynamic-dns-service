@@ -63,8 +63,6 @@ When you run `cdds`, you will be greeted by an interactive menu with the followi
 6. **Manage Systemd Service** — install and manage a Systemd unit; requires `sudo`; only shown on Linux systems with Systemd.
 7. **Manage PM2 Service** — install and manage a PM2 process; only shown when `pm2` is available in `PATH`.
 
-Each service manager shows a live status header and dynamically presents only the relevant actions (e.g. **Stop** when running, **Start** when stopped).
-
 ### Commands
 
 | Command          | Description                                                      |
