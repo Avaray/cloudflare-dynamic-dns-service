@@ -931,6 +931,9 @@ const runLaunchdManager = async () => {
 			} else if (action === 'reload') {
 				// Regenerate plist and reload
 				await fsPromises.mkdir(systemLaunchDaemonsDir, { recursive: true });
+
+				const commandParts = rt.fullCommand.split(' ').map(part => `<string>${part}</string>`).join('\n    ');
+
 				const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -939,7 +942,7 @@ const runLaunchdManager = async () => {
   <string>${LAUNCHD_LABEL}</string>
   <key>ProgramArguments</key>
   <array>
-    <string>${execPath}</string>
+    ${commandParts}
     <string>${scriptPath}</string>
     <string>start</string>
     <string>--env</string>
