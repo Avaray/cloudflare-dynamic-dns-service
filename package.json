@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node dist/main.js",
     "cli": "node dist/cli.js",
-    "build": "tsup cli.ts main.ts --format esm --clean",
+    "build": "tsdown",
     "test": "bun test",
     "prepack": "bun run build"
   },
@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
-    "tsup": "^8.5.1",
+    "tsdown": "^0.22.14",
     "typescript": "^7.0.2"
   },
   "keywords": [
