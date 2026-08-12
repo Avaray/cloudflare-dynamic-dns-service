@@ -65,12 +65,15 @@ export interface RuntimeInfo {
 	serviceArgs: string;
 	fullCommand: string;
 	isSudo: boolean;
+	isSudoE: boolean;
 	sudoUser: string | null;
 }
 
 export function detectRuntime(): RuntimeInfo {
 	const isSudo = !!process.env.SUDO_USER;
 	const sudoUser = process.env.SUDO_USER || null;
+	// When sudo -E is used, the original user's USER or LOGNAME is preserved instead of becoming 'root'
+	const isSudoE = isSudo && (process.env.USER === sudoUser || process.env.LOGNAME === sudoUser);
 	
 	let engine: 'node' | 'bun' | 'deno' = 'node';
 	if (typeof process.versions.bun !== 'undefined') {
@@ -103,7 +106,7 @@ export function detectRuntime(): RuntimeInfo {
 		fullCommand = execPath;
 	}
 	
-	return { engine, execPath, servicePrefix, serviceArgs, fullCommand, isSudo, sudoUser };
+	return { engine, execPath, servicePrefix, serviceArgs, fullCommand, isSudo, isSudoE, sudoUser };
 }
 
 
@@ -1554,7 +1557,7 @@ Usage:
 			const debugTag = process.env.CDDS_DEBUG === 'true' ? ' \x1b[33mDEBUG MODE\x1b[0m' : '';
 			
 			const rt = detectRuntime();
-			const sudoWarning = rt.isSudo ? `\x1b[33m[!] WARNING: Sudo detected. Local user environment variables may be missing.\n    Recommendation: Use "sudo -E cdds"\x1b[0m\n\n` : '';
+			const sudoWarning = (rt.isSudo && !rt.isSudoE) ? `\x1b[33m[!] WARNING: Sudo detected. Local user environment variables may be missing.\n    Recommendation: Use "sudo -E cdds"\x1b[0m\n\n` : '';
 			
 			const header = `\x1b[34m\x1b[1mCloudflare Dynamic DNS Service (CDDS)\x1b[0m${debugTag}\n` + 
 				configPathStr +
