@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.13.0] - 2026-08-12
+
+### Added
+- **Runtime Detection**: Implemented a new `detectRuntime()` function that accurately identifies the active JavaScript runtime (Node.js, Bun, Deno) and exposes the correct executable path, service prefix, and required arguments for each engine.
+- **Sudo Indicator**: Added a green `[SUDO]` tag in the CLI header when the application is run with elevated privileges, giving users immediate visual confirmation of their permission context.
+- **Sudo Warning**: Added a contextual warning message when `sudo` is detected but the configuration file cannot be loaded, suggesting the user try `sudo -E cdds` to preserve environment variables.
+- **Unit Tests for `detectRuntime`**: Added `cli.test.ts` with tests covering Node.js, Bun, Deno runtime detection and sudo environment detection.
+
+### Changed
+- **Build System**: Migrated bundler from `tsup` to `tsdown` (powered by rolldown) for faster and more robust CLI builds.
+- **Service Installers**: All service managers (Systemd, PM2, Launchd, Windows Task Scheduler) now use the dynamically detected runtime path and arguments instead of hardcoded `process.execPath`. This fixes service installation when running under NVM, Bun, or Deno.
+- **PM2 Detection**: PM2 availability check now also detects `npx pm2` and `bunx pm2` as fallback alternatives.
+- **CLI Restart Logic**: Internal process respawn logic now correctly passes detected runtime arguments when restarting the CLI.
+
+### Fixed
+- **Symlink Resolution**: `detectRuntime()` now calls `realpathSync()` on `process.execPath` to resolve symlinks (e.g. `node -> bun`) before engine detection, preventing misidentification on systems where Node.js is symlinked to Bun.
+- **`.env` `export` prefix**: The CLI's config parser now correctly strips the `export ` prefix from variable names (e.g. `export CDDS_ENV_PATH=...`), matching the behavior of shell-sourced env files.
+- **Sudo false positive**: Removed unreliable `isSudoE` heuristic (detecting `USER`/`LOGNAME` preservation). The sudo warning now only appears when `sudo` is active **and** the config file cannot be found — a concrete, reliable signal.
+
+---
+
 ## [1.12.1] - 2026-08-12
 
 ### Fixed
