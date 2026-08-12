@@ -80,6 +80,12 @@ export function detectRuntime(): RuntimeInfo {
 	}
 	
 	let execPath = process.execPath;
+	try {
+		execPath = require('fs').realpathSync(execPath);
+	} catch (e) {
+		// Ignore if realpath fails
+	}
+	
 	if (engine === 'deno' && !execPath) execPath = 'deno';
 	
 	let servicePrefix = '';
@@ -241,7 +247,7 @@ const parseEnv = async (): Promise<CloudflareConfig | null> => {
 		for (const line of lines) {
 			const [key, ...rest] = line.split('=');
 			if (key && rest.length > 0) {
-				const trimmedKey = key.trim();
+				const trimmedKey = key.trim().replace(/^export\s+/, '');
 				if (trimmedKey.startsWith('CDDS_')) hasCddsKey = true;
 				env[trimmedKey] = rest.join('=').trim();
 			}
