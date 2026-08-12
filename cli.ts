@@ -1560,9 +1560,10 @@ Usage:
 			const debugTag = process.env.CDDS_DEBUG === 'true' ? ' \x1b[33m[DEBUG MODE]\x1b[0m' : '';
 			
 			const rt = detectRuntime();
+			const sudoTag = rt.isSudo ? ' \x1b[32m[SUDO]\x1b[0m' : '';
 			const sudoWarning = (rt.isSudo && !existingConfig) ? `\x1b[33m[!] WARNING: Sudo detected but config was not found.\n    If you rely on local environment variables (like CDDS_ENV_PATH), they may have been wiped.\n    Recommendation: Use "sudo -E cdds" to preserve them.\x1b[0m\n\n` : '';
 			
-			const header = `\x1b[34m\x1b[1mCloudflare Dynamic DNS Service (CDDS)\x1b[0m${debugTag}\n` + 
+			const header = `\x1b[34m\x1b[1mCloudflare Dynamic DNS Service (CDDS)\x1b[0m${debugTag}${sudoTag}\n` + 
 				configPathStr +
 				'\n' + sudoWarning + 'Select an action:';
 			const action = await selectPrompt(header, menuItems);
