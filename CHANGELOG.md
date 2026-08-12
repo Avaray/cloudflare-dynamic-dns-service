@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.13.2] - 2026-08-12
+
+### Fixed
+- **Updater — pinned install version**: All package manager install commands (`npm`, `bun`, `deno`, `yarn`, `pnpm`) now install the exact detected version (e.g. `@1.13.2`) instead of `@latest`, preventing package manager cache from silently installing an older version.
+- **Updater — locked services visibility**: Services that are running but cannot be restarted without elevated privileges are now always printed as a warning **before** any interactive prompt. Previously this message was hidden behind the "Would you like to restart?" prompt when mixed restartable/locked services were present.
+
+---
+
 ## [1.13.1] - 2026-08-12
 
 ### Fixed
