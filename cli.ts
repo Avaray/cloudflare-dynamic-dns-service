@@ -1142,20 +1142,20 @@ const checkForUpdates = async () => {
 
 		const scriptPath = (process.argv[1] || import.meta.url).toLowerCase();
 		let pmName = 'NPM';
-		let installCmd = 'npm install -g cloudflare-dynamic-dns-service@latest';
+		let installCmd = `npm install -g cloudflare-dynamic-dns-service@${latestVersion}`;
 
 		if (typeof (process.versions as any)?.bun !== 'undefined') {
 			pmName = 'Bun';
-			installCmd = 'bun add -g cloudflare-dynamic-dns-service@latest';
+			installCmd = `bun add -g cloudflare-dynamic-dns-service@${latestVersion}`;
 		} else if (typeof (globalThis as any).Deno !== 'undefined') {
 			pmName = 'Deno';
-			installCmd = 'deno install -gf npm:cloudflare-dynamic-dns-service@latest';
+			installCmd = `deno install -gf npm:cloudflare-dynamic-dns-service@${latestVersion}`;
 		} else if (scriptPath.includes('.yarn') || scriptPath.includes('yarn')) {
 			pmName = 'Yarn';
-			installCmd = 'yarn global add cloudflare-dynamic-dns-service@latest';
+			installCmd = `yarn global add cloudflare-dynamic-dns-service@${latestVersion}`;
 		} else if (scriptPath.includes('.pnpm') || scriptPath.includes('pnpm')) {
 			pmName = 'pnpm';
-			installCmd = 'pnpm add -g cloudflare-dynamic-dns-service@latest';
+			installCmd = `pnpm add -g cloudflare-dynamic-dns-service@${latestVersion}`;
 		}
 
 		// Fallback check: if NPM is selected but not installed, try to use Bun if available
@@ -1166,7 +1166,7 @@ const checkForUpdates = async () => {
 				try {
 					execSync(isWindows ? 'where bun' : 'which bun', { stdio: 'ignore' });
 					pmName = 'Bun';
-					installCmd = 'bun add -g cloudflare-dynamic-dns-service@latest';
+					installCmd = `bun add -g cloudflare-dynamic-dns-service@${latestVersion}`;
 				} catch {}
 			}
 		}
@@ -1287,11 +1287,16 @@ const checkForUpdates = async () => {
 		const totalDetected = restartable.length + locked.length;
 		if (totalDetected > 0) {
 			const restartableLines = restartable.map(s => `  \x1b[33m•\x1b[0m ${s.label}`);
-			const lockedLines = locked.map(s => `  \x1b[90m• ${s}\x1b[0m`);
-			const allLines = [...restartableLines, ...lockedLines].join('\n');
+			const lockedLines = locked.map(s => `  \x1b[31m• ${s} — restart manually\x1b[0m`);
+
+			// Always show locked services as a warning BEFORE any interactive prompt
+			if (locked.length > 0) {
+				console.log(`\n\x1b[33m[!] The following services are running but cannot be restarted without elevated privileges:\x1b[0m\n${lockedLines.join('\n')}`);
+			}
 
 			if (restartable.length > 0) {
-				const promptHeader = `The following services are currently running:\n${allLines}\n\nWould you like to restart the available ones now?`;
+				const restartableList = restartableLines.join('\n');
+				const promptHeader = `\nThe following services can be restarted now:\n${restartableList}\n\nWould you like to restart them?`;
 				const restartAction = await selectPrompt(promptHeader, [
 					{ label: 'Yes, restart now', value: 'yes' },
 					{ label: 'No, I will restart them manually', value: 'no' }
@@ -1308,10 +1313,6 @@ const checkForUpdates = async () => {
 						}
 					}
 				}
-			} else {
-				// Only locked services — just show info, no interactive prompt
-				const allLocked = locked.map(s => `  \x1b[90m• ${s}\x1b[0m`).join('\n');
-				console.log(`\nThe following services are running but cannot be restarted without elevated privileges:\n${allLocked}`);
 			}
 		}
 
