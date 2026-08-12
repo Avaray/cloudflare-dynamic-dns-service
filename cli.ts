@@ -58,6 +58,54 @@ const getLogDir = () => process.env.CDDS_LOGS_DIR ? resolve(process.env.CDDS_LOG
 // Lazy getter — evaluated at call time so CDDS_LOGS_DIR is always respected
 const getPidFile = () => resolve(getLogDir(), 'cdds.pid');
 
+export interface RuntimeInfo {
+	engine: 'node' | 'bun' | 'deno';
+	execPath: string;
+	servicePrefix: string;
+	serviceArgs: string;
+	fullCommand: string;
+	isSudo: boolean;
+	sudoUser: string | null;
+}
+
+export function detectRuntime(): RuntimeInfo {
+	const isSudo = !!process.env.SUDO_USER;
+	const sudoUser = process.env.SUDO_USER || null;
+	
+	let engine: 'node' | 'bun' | 'deno' = 'node';
+	if (typeof process.versions.bun !== 'undefined') {
+		engine = 'bun';
+	} else if (typeof (globalThis as any).Deno !== 'undefined') {
+		engine = 'deno';
+	}
+	
+	let execPath = process.execPath;
+	if (engine === 'deno' && !execPath) execPath = 'deno';
+	
+	let servicePrefix = '';
+	let serviceArgs = '';
+	let fullCommand = execPath;
+	
+	if (engine === 'node') {
+		servicePrefix = '/usr/bin/env node';
+		fullCommand = servicePrefix;
+	} else if (engine === 'deno') {
+		serviceArgs = 'run -A';
+		fullCommand = `${execPath} ${serviceArgs}`;
+	} else if (engine === 'bun') {
+		if (execPath.includes('node') || execPath.endsWith('node.exe')) {
+			try {
+				execPath = execSync(isWindows ? "where bun" : "which bun", { encoding: "utf8" }).toString().trim().split('\n')[0].trim();
+			} catch {
+				execPath = 'bun';
+			}
+		}
+		fullCommand = execPath;
+	}
+	
+	return { engine, execPath, servicePrefix, serviceArgs, fullCommand, isSudo, sudoUser };
+}
+
 
 const fileExists = async (path: string) => { try { await fsPromises.access(path); return true; } catch { return false; } };
 
@@ -326,8 +374,13 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 };
 
 // --- SERVICE MANAGERS ---
+let _pm2Cmd: string | null = null;
 const isPM2Available = (): boolean => {
-	try { execSync(isWindows ? 'where pm2' : 'which pm2', { stdio: 'ignore' }); return true; } catch { return false; }
+	if (_pm2Cmd) return true;
+	try { execSync(isWindows ? 'where pm2' : 'which pm2', { stdio: 'ignore' }); _pm2Cmd = 'pm2'; return true; } catch {}
+	try { execSync('npx pm2 --version', { stdio: 'ignore' }); _pm2Cmd = 'npx pm2'; return true; } catch {}
+	try { execSync('bunx pm2 --version', { stdio: 'ignore' }); _pm2Cmd = 'bunx pm2'; return true; } catch {}
+	return false;
 };
 
 const isSystemdAvailable = (): boolean => {
@@ -420,14 +473,7 @@ const runSystemdManager = async () => {
 
 			if (action === 'install') {
 				const projectPath = getLogDir();
-				let bunPath = process.execPath;
-				if (typeof process.versions.bun !== "undefined" && bunPath.includes("node")) {
-					try {
-						bunPath = require("child_process").execSync("which bun", { encoding: "utf8" }).trim();
-					} catch (e) {
-						bunPath = "bun"; // fallback
-					}
-				}
+				const rt = detectRuntime();
 				const scriptPath = import.meta.url ? new URL(import.meta.url).pathname : process.argv[1];
 				const envPath = getEnvPath();
 				const serviceContent = `[Unit]
@@ -438,9 +484,10 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=${projectPath}
-ExecStart=${bunPath} ${scriptPath} start --env ${envPath}
+ExecStart=${rt.fullCommand} ${scriptPath} start --env ${envPath}
 Restart=on-failure
 RestartSec=10
+Environment="PATH=${process.env.PATH}"
 Environment="CDDS_ENV_PATH=${envPath}"
 Environment="CDDS_SYSTEMD_MODE=true"
 StandardOutput=syslog
@@ -490,12 +537,12 @@ const runPM2Manager = async () => {
 	interface PM2Process { name: string; pm_id: number; pm2_env: { status: string } }
 	const getPM2Status = (): PM2Process | null => {
 		try {
-			const raw = execSync('pm2 jlist', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
+			const raw = execSync(`${_pm2Cmd || 'pm2'} jlist`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
 			const list: PM2Process[] = JSON.parse(raw);
 			return list.find(p => p.name === PM2_SERVICE_NAME) || null;
 		} catch (e: any) {
 			if (e.message?.includes('EPERM') || e.stderr?.includes('EPERM')) {
-				throw new Error('EPERM: Cannot connect to PM2 daemon.\n\nThe PM2 daemon was started by a different process or user.\nRun \x1b[33mpm2 kill\x1b[0m in your terminal and try again.');
+				throw new Error(`EPERM: Cannot connect to PM2 daemon.\n\nThe PM2 daemon was started by a different process or user.\nRun \x1b[33m${_pm2Cmd || 'pm2'} kill\x1b[0m in your terminal and try again.`);
 			}
 			return null;
 		}
@@ -535,7 +582,7 @@ const runPM2Manager = async () => {
 			...(!notInstalled && isOnline ? [{ label: 'Stop Service', value: 'pause' }] : []),
 			...(!notInstalled && isStopped ? [{ label: `Start Service${disableMsg}`, value: 'resume', disabled: !isConfigValid }] : []),
 			...(!notInstalled ? [{ label: 'Uninstall / Remove Service', value: 'remove' }] : []),
-			...(!pm2Error ? [{ label: 'Save Services (pm2 save)', value: 'save' }] : []),
+			...(!pm2Error ? [{ label: `Save Services (${_pm2Cmd || 'pm2'} save)`, value: 'save' }] : []),
 			{ label: 'Refresh Status', value: 'refresh' },
 			{ label: 'Go Back', value: 'back' },
 		];
@@ -556,41 +603,41 @@ const runPM2Manager = async () => {
 			const targetName = primary?.name ?? PM2_SERVICE_NAME;
 
 			if (action === 'install') {
-				const bunExec = process.execPath;
+				const rt = detectRuntime();
 				const scriptPath = import.meta.url ? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') : process.argv[1];
 
-				const pm2Content = `module.exports = {\n  apps: [\n    {\n      name: "${PM2_SERVICE_NAME}",\n      script: "${scriptPath.replace(/\\/g, '/')}",\n      args: "start --env ${getEnvPath().replace(/\\/g, '/')}",\n      interpreter: "${bunExec.replace(/\\/g, '/')}",\n      instances: 1,\n      autorestart: true,\n      watch: false,\n      cwd: "${getLogDir().replace(/\\/g, '/')}",\n      max_memory_restart: "100M",\n      env: { NODE_ENV: "production", CDDS_ENV_PATH: "${getEnvPath().replace(/\\/g, '/')}" },\n    },\n  ],\n};\n`;
+				const pm2Content = `module.exports = {\n  apps: [\n    {\n      name: "${PM2_SERVICE_NAME}",\n      script: "${scriptPath.replace(/\\/g, '/')}",\n      args: "start --env ${getEnvPath().replace(/\\/g, '/')}",\n      interpreter: "${rt.execPath.replace(/\\/g, '/')}",\n      interpreter_args: "${rt.serviceArgs.replace(/\\/g, '/')}",\n      instances: 1,\n      autorestart: true,\n      watch: false,\n      cwd: "${getLogDir().replace(/\\/g, '/')}",\n      max_memory_restart: "100M",\n      env: { NODE_ENV: "production", CDDS_ENV_PATH: "${getEnvPath().replace(/\\/g, '/')}" },\n    },\n  ],\n};\n`;
 				const pm2ConfigPath = resolve(getLogDir(), 'pm2.config.cjs');
 				await fsPromises.writeFile(pm2ConfigPath, pm2Content, "utf8");
-				execSync(`pm2 start "${pm2ConfigPath}"`);
-				execSync('pm2 save');
+				execSync(`${_pm2Cmd || 'pm2'} start "${pm2ConfigPath}"`);
+				execSync(`${_pm2Cmd || 'pm2'} save`);
 				console.log('\x1b[32mSUCCESS: PM2 Service installed and started successfully!\x1b[0m');
 				logMessage(`PM2: Installed and started ${PM2_SERVICE_NAME}`);
 			} else if (action === 'reload') {
-				const bunExec = process.execPath;
+				const rt = detectRuntime();
 				const scriptPath = import.meta.url ? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') : process.argv[1];
-				const pm2Content = `module.exports = {\n  apps: [\n    {\n      name: "${targetName}",\n      script: "${scriptPath.replace(/\\/g, '/')}",\n      args: "start --env ${getEnvPath().replace(/\\/g, '/')}",\n      interpreter: "${bunExec.replace(/\\/g, '/')}",\n      instances: 1,\n      autorestart: true,\n      watch: false,\n      cwd: "${getLogDir().replace(/\\/g, '/')}",\n      max_memory_restart: "100M",\n      env: { NODE_ENV: "production", CDDS_ENV_PATH: "${getEnvPath().replace(/\\/g, '/')}" },\n    },\n  ],\n};\n`;
+				const pm2Content = `module.exports = {\n  apps: [\n    {\n      name: "${targetName}",\n      script: "${scriptPath.replace(/\\/g, '/')}",\n      args: "start --env ${getEnvPath().replace(/\\/g, '/')}",\n      interpreter: "${rt.execPath.replace(/\\/g, '/')}",\n      interpreter_args: "${rt.serviceArgs.replace(/\\/g, '/')}",\n      instances: 1,\n      autorestart: true,\n      watch: false,\n      cwd: "${getLogDir().replace(/\\/g, '/')}",\n      max_memory_restart: "100M",\n      env: { NODE_ENV: "production", CDDS_ENV_PATH: "${getEnvPath().replace(/\\/g, '/')}" },\n    },\n  ],\n};\n`;
 				const pm2ConfigPath = resolve(getLogDir(), 'pm2.config.cjs');
 				await fsPromises.writeFile(pm2ConfigPath, pm2Content, "utf8");
-				execSync(`pm2 start "${pm2ConfigPath}"`);
-				execSync('pm2 save');
+				execSync(`${_pm2Cmd || 'pm2'} start "${pm2ConfigPath}"`);
+				execSync(`${_pm2Cmd || 'pm2'} save`);
 				console.log('\x1b[32mSUCCESS: PM2 Service restarted and updated with latest config.\x1b[0m');
 				logMessage(`PM2: Reloaded ${targetName}`);
 			} else if (action === 'pause') {
-				execSync(`pm2 stop "${targetName}"`);
+				execSync(`${_pm2Cmd || 'pm2'} stop "${targetName}"`);
 				console.log('\x1b[32mSUCCESS: PM2 Service stopped.\x1b[0m');
 				logMessage(`PM2: Stopped ${targetName}`);
 			} else if (action === 'resume') {
-				execSync(`pm2 start "${targetName}"`);
+				execSync(`${_pm2Cmd || 'pm2'} start "${targetName}"`);
 				console.log('\x1b[32mSUCCESS: PM2 Service started.\x1b[0m');
 				logMessage(`PM2: Started ${targetName}`);
 			} else if (action === 'save') {
-				execSync('pm2 save');
+				execSync(`${_pm2Cmd || 'pm2'} save`);
 				console.log('\x1b[32mSUCCESS: PM2 Services saved (will restore on boot if pm2 startup is configured).\x1b[0m');
 				logMessage(`PM2: Saved process list`);
 			} else if (action === 'remove') {
-				execSync(`pm2 delete "${targetName}"`);
-				execSync('pm2 save');
+				execSync(`${_pm2Cmd || 'pm2'} delete "${targetName}"`);
+				execSync(`${_pm2Cmd || 'pm2'} save`);
 				console.log('\x1b[32mSUCCESS: PM2 Service removed.\x1b[0m');
 				logMessage(`PM2: Removed ${targetName}`);
 			}
@@ -647,7 +694,8 @@ const runTaskSchedulerManager = async () => {
 			validateConfig(cfg);
 
 			if (action === 'install') {
-					const execPath = process.execPath.replace(/\//g, '\\');
+					const rt = detectRuntime();
+					const execPath = rt.execPath.replace(/\//g, '\\');
 					const scriptPath = (import.meta.url
 						? new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 						: process.argv[1]
@@ -675,6 +723,8 @@ const runTaskSchedulerManager = async () => {
 					} else {
 						triggerXml = `<LogonTrigger>\n      <Enabled>true</Enabled>\n    </LogonTrigger>`;
 					}
+
+					const argsPrefix = rt.serviceArgs ? rt.serviceArgs + ' ' : '';
 
 					// Build task XML — avoids all quoting/escaping issues with spaces in paths
 					const taskXml = `<?xml version="1.0" encoding="UTF-16"?>
@@ -705,7 +755,7 @@ const runTaskSchedulerManager = async () => {
   <Actions Context="Author">
     <Exec>
       <Command>${execPath}</Command>
-      <Arguments>"${scriptPath}" start --env "${envPath}"</Arguments>
+      <Arguments>${argsPrefix}"${scriptPath}" start --env "${envPath}"</Arguments>
       <WorkingDirectory>${workDir}</WorkingDirectory>
     </Exec>
   </Actions>
@@ -813,7 +863,7 @@ const runLaunchdManager = async () => {
 			if (!cfg) throw new Error('No .env file found. Please run the configuration wizard first.');
 			validateConfig(cfg);
 
-			const execPath = process.execPath;
+			const rt = detectRuntime();
 			const scriptPath = import.meta.url
 				? new URL(import.meta.url).pathname
 				: process.argv[1];
@@ -824,6 +874,8 @@ const runLaunchdManager = async () => {
 				// Ensure LaunchDaemons dir exists
 				await fsPromises.mkdir(systemLaunchDaemonsDir, { recursive: true });
 
+				const commandParts = rt.fullCommand.split(' ').map(part => `<string>${part}</string>`).join('\n    ');
+
 				const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -832,7 +884,7 @@ const runLaunchdManager = async () => {
   <string>${LAUNCHD_LABEL}</string>
   <key>ProgramArguments</key>
   <array>
-    <string>${execPath}</string>
+    ${commandParts}
     <string>${scriptPath}</string>
     <string>start</string>
     <string>--env</string>
@@ -1143,13 +1195,13 @@ const checkForUpdates = async () => {
 		if (isPM2Available()) {
 			try {
 				const PM2_SVC = 'Cloudflare-Dynamic-DNS-Service';
-				const raw = execSync('pm2 jlist', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
+				const raw = execSync(`${_pm2Cmd || 'pm2'} jlist`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
 				const list = JSON.parse(raw) as any[];
 				const cddsProc = list.find((p: any) => p.name === PM2_SVC && p.pm2_env?.status === 'online');
 				if (cddsProc) {
 					restartable.push({
 						label: 'PM2 Service',
-						restart: () => { execSync(`pm2 restart "${PM2_SVC}"`, { stdio: 'ignore' }); }
+						restart: () => { execSync(`${_pm2Cmd || 'pm2'} restart "${PM2_SVC}"`, { stdio: 'ignore' }); }
 					});
 				}
 			} catch (err: any) { debugLog(`PM2 check failed: ${err.message}`); }
@@ -1259,11 +1311,12 @@ const checkForUpdates = async () => {
 		console.clear();
 		
 		const { spawnSync } = await import('node:child_process');
-		const _execPath = process.argv[0];
-		const _scriptPath = process.argv[1];
-		debugLog(`Spawning: ${_execPath} ${_scriptPath}`);
+		const rt = detectRuntime();
+		const _execPath = rt.execPath;
+		const _args = rt.serviceArgs ? [...rt.serviceArgs.split(' '), process.argv[1]] : [process.argv[1]];
+		debugLog(`Spawning: ${_execPath} ${_args.join(' ')}`);
 		
-		const child = spawnSync(_execPath, [_scriptPath], { stdio: 'inherit' });
+		const child = spawnSync(_execPath, _args, { stdio: 'inherit' });
 		
 		if (child.error) {
 			debugLog(new Error(`spawnSync error: ${child.error.message}`));
@@ -1499,9 +1552,13 @@ Usage:
 			}
 
 			const debugTag = process.env.CDDS_DEBUG === 'true' ? ' \x1b[33mDEBUG MODE\x1b[0m' : '';
+			
+			const rt = detectRuntime();
+			const sudoWarning = rt.isSudo ? `\x1b[33m[!] WARNING: Sudo detected. Local user environment variables may be missing.\n    Recommendation: Use "sudo -E cdds"\x1b[0m\n\n` : '';
+			
 			const header = `\x1b[34m\x1b[1mCloudflare Dynamic DNS Service (CDDS)\x1b[0m${debugTag}\n` + 
 				configPathStr +
-				'\nSelect an action:';
+				'\n' + sudoWarning + 'Select an action:';
 			const action = await selectPrompt(header, menuItems);
 			if (action === 'exit') break;
 			view = action;
