@@ -1,5 +1,5 @@
 import { test, expect, describe, afterEach, beforeEach } from "bun:test";
-import { detectRuntime } from "./cli";
+import { detectRuntime, isNewer } from "./cli";
 
 describe("detectRuntime", () => {
     let originalBun: string | undefined;
@@ -73,5 +73,34 @@ describe("detectRuntime", () => {
         const rt = detectRuntime();
         expect(rt.isSudo).toBe(true);
         expect(rt.sudoUser).toBe("john");
+    });
+});
+
+describe("isNewer", () => {
+    test("returns false when versions are equal", () => {
+        expect(isNewer("1.12.1", "1.12.1")).toBe(false);
+        expect(isNewer("1.13.0", "1.13.0")).toBe(false);
+    });
+
+    test("returns false when local version is newer than remote (dev ahead of npm)", () => {
+        expect(isNewer("1.12.1", "1.13.0")).toBe(false);
+        expect(isNewer("1.0.0", "2.0.0")).toBe(false);
+    });
+
+    test("returns true when remote version is newer (update available)", () => {
+        expect(isNewer("1.13.0", "1.12.1")).toBe(true);
+        expect(isNewer("2.0.0", "1.99.99")).toBe(true);
+        expect(isNewer("1.12.2", "1.12.1")).toBe(true);
+    });
+
+    test("handles v-prefix correctly", () => {
+        expect(isNewer("v1.13.0", "1.12.1")).toBe(true);
+        expect(isNewer("1.12.1", "v1.13.0")).toBe(false);
+    });
+
+    test("compares patch correctly", () => {
+        expect(isNewer("1.12.2", "1.12.1")).toBe(true);
+        expect(isNewer("1.12.1", "1.12.2")).toBe(false);
+        expect(isNewer("1.12.10", "1.12.9")).toBe(true);
     });
 });

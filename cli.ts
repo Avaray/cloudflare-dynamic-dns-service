@@ -113,6 +113,15 @@ export function detectRuntime(): RuntimeInfo {
 }
 
 
+export const parseVer = (v: string) => v.replace(/^v/, '').split('.').map(Number);
+export const isNewer = (a: string, b: string): boolean => {
+	const [aMaj, aMin, aPat] = parseVer(a);
+	const [bMaj, bMin, bPat] = parseVer(b);
+	if (aMaj !== bMaj) return aMaj > bMaj;
+	if (aMin !== bMin) return aMin > bMin;
+	return aPat > bPat;
+};
+
 const fileExists = async (path: string) => { try { await fsPromises.access(path); return true; } catch { return false; } };
 
 const logMessage = (msg: string) => {
@@ -1122,7 +1131,7 @@ const checkForUpdates = async () => {
 		const latestData = await response.json() as any;
 		const latestVersion = latestData.version;
 
-		if (latestVersion === currentVersion) {
+		if (!isNewer(latestVersion, currentVersion)) {
 			console.log(`\x1b[32mYou are using the latest version (v${currentVersion}).\x1b[0m`);
 			await pausePrompt();
 			return;
