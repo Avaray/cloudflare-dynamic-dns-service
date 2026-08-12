@@ -1596,4 +1596,6 @@ Usage:
 	}
 };
 
-main().catch(console.error);
+if (process.env.NODE_ENV !== 'test' && process.env.BUN_ENV !== 'test') {
+	main().catch(console.error);
+}
