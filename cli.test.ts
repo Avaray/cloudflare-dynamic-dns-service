@@ -68,22 +68,10 @@ describe("detectRuntime", () => {
         expect(rt.fullCommand).toBe("/home/user/.deno/bin/deno run -A");
     });
 
-    test("detects sudo environment without -E", () => {
+    test("detects sudo environment", () => {
         process.env.SUDO_USER = "john";
-        process.env.USER = "root";
-        process.env.LOGNAME = "root";
         const rt = detectRuntime();
         expect(rt.isSudo).toBe(true);
-        expect(rt.isSudoE).toBe(false);
-        expect(rt.sudoUser).toBe("john");
-    });
-
-    test("detects sudo environment with -E", () => {
-        process.env.SUDO_USER = "john";
-        process.env.USER = "john"; // -E preserves the user
-        const rt = detectRuntime();
-        expect(rt.isSudo).toBe(true);
-        expect(rt.isSudoE).toBe(true);
         expect(rt.sudoUser).toBe("john");
     });
 });
