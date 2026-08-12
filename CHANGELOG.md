@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.13.1] - 2026-08-12
+
+### Fixed
+- **Launchd reload**: Fixed a `TS2304: Cannot find name 'execPath'` TypeScript error in the Launchd `reload` action. The bare `execPath` variable (which was never defined in that scope) has been replaced with the correctly computed `rt.fullCommand`, consistent with the `install` action. This also fixes runtime detection (Deno flags, NVM paths) being ignored during a plist reload.
+
+---
+
 ## [1.13.0] - 2026-08-12
 
 ### Added
