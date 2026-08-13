@@ -277,7 +277,9 @@ const parseEnv = async (): Promise<CloudflareConfig | null> => {
 			checkIntervalMinutes: parseInt(env.CDDS_CHECK_INTERVAL || '5', 10),
 			logs: true,
 			logLevel: (env.CDDS_LOG_LEVEL as any) ?? (env.CDDS_LOGS === 'false' ? 'error' : 'info'),
+			logConsole: env.CDDS_LOG_CONSOLE !== 'false',
 			logFile: env.CDDS_LOG_FILE === 'true' || env.CDDS_ACTION_LOGFILE === 'true' || env.CDDS_IP_LOGFILE === 'true',
+			logEndpoint: env.CDDS_LOG_ENDPOINT && env.CDDS_LOG_ENDPOINT.toLowerCase() !== 'false' ? env.CDDS_LOG_ENDPOINT : false,
 			logFormat: (env.CDDS_LOG_FORMAT as any) ?? 'text',
 			logMaxLines: parseInt(env.CDDS_LOG_MAX_LINES ?? '1000', 10),
 			dryRun: false,
@@ -319,7 +321,9 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	let ipType = existingVars['CDDS_IP_TYPE'] || initialConfig?.ipType || 'ipv4';
 	let logs = existingVars['CDDS_LOG_LEVEL'] || (initialConfig?.logLevel !== 'error' ? 'info' : 'error');
 	let proxied = existingVars['CDDS_PROXIED'] || (initialConfig?.proxied ? 'true' : 'false');
+	let logConsole = existingVars['CDDS_LOG_CONSOLE'] || (initialConfig?.logConsole === false ? 'false' : 'true');
 	let logFile = existingVars['CDDS_LOG_FILE'] || 'false';
+	let logEndpoint = existingVars['CDDS_LOG_ENDPOINT'] || (initialConfig?.logEndpoint || 'false');
 	
 	let systemdMode = existingVars['CDDS_SYSTEMD_MODE'] || process.env.CDDS_SYSTEMD_MODE || 'false';
 	let logFormat = existingVars['CDDS_LOG_FORMAT'] || initialConfig?.logFormat || 'text';
@@ -358,12 +362,19 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 			{ label: 'Warn (warnings and errors only)', value: 'warn' },
 			{ label: 'Error (errors only)', value: 'error' }
 		], ['info', 'debug', 'warn', 'error'].indexOf(logs) >= 0 ? ['info', 'debug', 'warn', 'error'].indexOf(logs) : 0) as string;
+		logConsole = await selectPrompt('Output logs to console?', [
+			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+		], logConsole === 'true' ? 0 : 1);
 		logFile = await selectPrompt('Save logs to a file (cdds.log)?', [
 			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
 		], logFile === 'true' ? 0 : 1);
+		logEndpoint = await textPrompt('Send logs to HTTP Endpoint URL (leave empty to disable):', logEndpoint === 'false' ? '' : logEndpoint);
+		if (!logEndpoint) logEndpoint = 'false';
 	} else {
 		logs = 'error';
+		logConsole = 'false';
 		logFile = 'false';
+		logEndpoint = 'false';
 	}
 
 	if (process.env.CDDS_DEBUG === 'true') {
@@ -393,7 +404,10 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	existingVars['CDDS_IP_TYPE'] = ipType;
 	existingVars['CDDS_PROXIED'] = proxied;
 	existingVars['CDDS_LOG_LEVEL'] = logs;
+	existingVars['CDDS_LOG_CONSOLE'] = logConsole;
 	existingVars['CDDS_LOG_FILE'] = logFile;
+	if (logEndpoint !== 'false') existingVars['CDDS_LOG_ENDPOINT'] = logEndpoint;
+	else delete existingVars['CDDS_LOG_ENDPOINT'];
 	
 	if (process.env.CDDS_DEBUG === 'true') {
 		existingVars['CDDS_SYSTEMD_MODE'] = systemdMode;

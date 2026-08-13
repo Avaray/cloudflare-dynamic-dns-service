@@ -42,7 +42,9 @@ interface CloudflareConfig {
   email: string;
   ipType?: "ipv4" | "ipv6" | "both";
   logs: boolean; // Kept for backward compat within the class
+  logConsole: boolean;
   logFile: boolean | string;
+  logEndpoint?: string | false;
   logFormat: "text" | "json";
   logLevel: LogLevel;
   logMaxLines: number;
@@ -893,6 +895,11 @@ if (process.env.CDDS_LOG_FILE) {
   logFileValue = true;
 }
 
+let logEndpointValue: string | false = false;
+if (process.env.CDDS_LOG_ENDPOINT && process.env.CDDS_LOG_ENDPOINT.toLowerCase() !== "false" && process.env.CDDS_LOG_ENDPOINT.trim() !== "") {
+  logEndpointValue = process.env.CDDS_LOG_ENDPOINT.trim();
+}
+
 const config: CloudflareConfig = {
   apiKey: process.env.CDDS_API_KEY ?? "your_cloudflare_api_key_here",
   apiKeyType: detectApiKeyType(process.env.CDDS_API_KEY ?? "your_cloudflare_api_key_here"),
@@ -901,8 +908,10 @@ const config: CloudflareConfig = {
   email: process.env.CDDS_EMAIL ?? "your_email@example.com",
   ipType: (["ipv4", "ipv6", "both"].includes(process.env.CDDS_IP_TYPE?.toLowerCase() || "") ? process.env.CDDS_IP_TYPE!.toLowerCase() as any : "ipv4"),
   logs: true, // Always true for the class, filtering is handled by monkey-patch in startDaemon
+  logConsole: process.env.CDDS_LOG_CONSOLE !== "false",
   logLevel: (process.env.CDDS_LOG_LEVEL as LogLevel) ?? (process.env.CDDS_LOGS === "false" ? "error" : "info"),
   logFile: logFileValue,
+  logEndpoint: logEndpointValue,
   logFormat: (process.env.CDDS_LOG_FORMAT as "text" | "json") ?? "text",
   logMaxLines: parseInt(process.env.CDDS_LOG_MAX_LINES ?? "1000"),
   proxied: process.env.CDDS_PROXIED?.toLowerCase() === "true",
@@ -957,6 +966,17 @@ function validateConfig(config: CloudflareConfig): void {
   }
   if (config.ipType && !["ipv4", "ipv6", "both"].includes(config.ipType)) {
     throw new Error("IP Type must be either 'ipv4' or 'ipv6'");
+  }
+  
+  if (config.logEndpoint) {
+    try {
+      const url = new URL(config.logEndpoint);
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        throw new Error();
+      }
+    } catch {
+      throw new Error(`Invalid log endpoint URL: ${config.logEndpoint}`);
+    }
   }
 }
 
@@ -1016,10 +1036,12 @@ export async function startDaemon() {
       fileOut = `[${ts}] [${level.toUpperCase()}] [${tag}] ${cleanMsg}`;
     }
 
-    if (level === "error") origError(consoleOut);
-    else if (level === "warn") origWarn(consoleOut);
-    else if (level === "debug") origDebug(consoleOut);
-    else origLog(consoleOut);
+    if (config.logConsole !== false) {
+      if (level === "error") origError(consoleOut);
+      else if (level === "warn") origWarn(consoleOut);
+      else if (level === "debug") origDebug(consoleOut);
+      else origLog(consoleOut);
+    }
 
     if (config.logFile) {
       try {
@@ -1038,6 +1060,15 @@ export async function startDaemon() {
           }
         }
       } catch (_) {}
+    }
+
+    if (config.logEndpoint) {
+      const obj = { timestamp: ts, level: level.toUpperCase(), tag, message: cleanMsg };
+      fetch(config.logEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(obj)
+      }).catch(() => {});
     }
   }
 
@@ -1062,7 +1093,9 @@ export async function startDaemon() {
     console.error(`CDDS_ZONE_ID=optional_zone_id`);
     console.error(`CDDS_TTL=300 (in seconds)`);
     console.error(`CDDS_LOG_LEVEL=info (debug, info, warn, error)`);
+    console.error(`CDDS_LOG_CONSOLE=true`);
     console.error(`CDDS_LOG_FILE=true`);
+    console.error(`CDDS_LOG_ENDPOINT=http://example.com/logs`);
     console.error(`CDDS_LOG_FORMAT=text (text, json)`);
     console.error(`CDDS_CHECK_INTERVAL=5`);
     process.exit(1);
