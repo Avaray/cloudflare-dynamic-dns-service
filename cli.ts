@@ -136,8 +136,10 @@ const clearScreen = () => {
 
 const textPrompt = (question: string, defaultValue: string = ''): Promise<string> => {
 	return new Promise((resolve) => {
+		process.stdout.write('\x1B[2J\x1B[0;0H'); // Clear and move to top
+		console.log(`\x1b[36m\x1b[1m${question}\x1b[0m\n`);
 		const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-		rl.question(`${question} ${defaultValue ? `(${defaultValue}) ` : ''}`, (answer) => {
+		rl.question(`\x1b[32m❯\x1b[0m ${defaultValue ? `[${defaultValue}] ` : ''}`, (answer) => {
 			rl.close();
 			resolve(answer.trim() || defaultValue);
 		});
@@ -324,9 +326,6 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	let logMaxLines = existingVars['CDDS_LOG_MAX_LINES'] || initialConfig?.logMaxLines?.toString() || '1000';
 	let debugMode = existingVars['CDDS_DEBUG'] || process.env.CDDS_DEBUG || 'false';
 
-	clearScreen();
-	console.log('\x1b[36m\x1b[1m--- .ENV CONFIGURATION WIZARD ---\x1b[0m\n');
-	
 	apiKey = await textPrompt('Cloudflare API Key / Token:', apiKey);
 	const keyType = detectApiKeyType(apiKey);
 	if (keyType === 'key') {
@@ -368,7 +367,6 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	}
 
 	if (process.env.CDDS_DEBUG === 'true') {
-		console.log('\n\x1b[33m--- ADVANCED DEBUG SETTINGS ---\x1b[0m');
 		systemdMode = await selectPrompt('Enable Systemd Mode (disable file logging if journald is active)?', [
 			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
 		], systemdMode === 'true' ? 0 : 1);
