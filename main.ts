@@ -45,6 +45,7 @@ interface CloudflareConfig {
   logConsole: boolean;
   logFile: boolean | string;
   logEndpoint?: string | false;
+  discordMessageFormat?: string;
   logFormat: "text" | "json";
   logLevel: LogLevel;
   logMaxLines: number;
@@ -912,6 +913,7 @@ const config: CloudflareConfig = {
   logLevel: (process.env.CDDS_LOG_LEVEL as LogLevel) ?? (process.env.CDDS_LOGS === "false" ? "error" : "info"),
   logFile: logFileValue,
   logEndpoint: logEndpointValue,
+  discordMessageFormat: process.env.CDDS_DISCORD_MESSAGE_FORMAT ?? "**[{level}]** {message}",
   logFormat: (process.env.CDDS_LOG_FORMAT as "text" | "json") ?? "text",
   logMaxLines: parseInt(process.env.CDDS_LOG_MAX_LINES ?? "1000"),
   proxied: process.env.CDDS_PROXIED?.toLowerCase() === "true",
@@ -1063,11 +1065,24 @@ export async function startDaemon() {
     }
 
     if (config.logEndpoint) {
-      const obj = { timestamp: ts, level: level.toUpperCase(), tag, message: cleanMsg };
+      const isDiscord = config.logEndpoint.includes("discord.com/api/webhooks");
+      let payload: any;
+      
+      if (isDiscord) {
+        const msg = (config.discordMessageFormat || "**[{level}]** {message}")
+          .replace(/{level}/gi, level.toUpperCase())
+          .replace(/{tag}/gi, tag)
+          .replace(/{timestamp}/gi, ts)
+          .replace(/{message}/gi, cleanMsg);
+        payload = { username: "Cloudflare DDNS", content: msg };
+      } else {
+        payload = { timestamp: ts, level: level.toUpperCase(), tag, message: cleanMsg };
+      }
+
       fetch(config.logEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(obj)
+        body: JSON.stringify(payload)
       }).catch(() => {});
     }
   }
@@ -1096,6 +1111,7 @@ export async function startDaemon() {
     console.error(`CDDS_LOG_CONSOLE=true`);
     console.error(`CDDS_LOG_FILE=true`);
     console.error(`CDDS_LOG_ENDPOINT=http://example.com/logs`);
+    console.error(`CDDS_DISCORD_MESSAGE_FORMAT=**[{level}]** {message}`);
     console.error(`CDDS_LOG_FORMAT=text (text, json)`);
     console.error(`CDDS_CHECK_INTERVAL=5`);
     process.exit(1);
