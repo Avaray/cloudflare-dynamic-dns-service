@@ -289,15 +289,40 @@ const parseEnv = async (): Promise<CloudflareConfig | null> => {
 
 // --- WIZARD ---
 const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
-	let apiKey = initialConfig?.apiKey || '';
-	let email = initialConfig?.email || '';
-	let targets = initialConfig?.targets.join(', ') || '';
-	let zoneId = initialConfig?.zoneId || '';
-	let ttl = initialConfig?.ttl?.toString() || '60';
-	let interval = initialConfig?.checkIntervalMinutes?.toString() || '5';
-	let ipType = initialConfig?.ipType || 'ipv4';
-	let logs = initialConfig?.logLevel !== 'error' ? 'true' : 'false';
-	let proxied = initialConfig?.proxied ? 'true' : 'false';
+	const envPath = getEnvPath();
+	let existingLines: string[] = [];
+	const existingVars: Record<string, string> = {};
+	try {
+		const text = await fsPromises.readFile(envPath, 'utf8');
+		const lines = text.split(/\r?\n/);
+		for (const line of lines) {
+			if (!line.trim().startsWith('CDDS_')) {
+				existingLines.push(line);
+			} else {
+				const match = line.match(/^(?:export\s+)?(CDDS_[A-Z_]+)=(.*)$/);
+				if (match) existingVars[match[1]] = match[2];
+			}
+		}
+		while (existingLines.length > 0 && existingLines[existingLines.length - 1].trim() === '') {
+			existingLines.pop();
+		}
+	} catch { }
+
+	let apiKey = existingVars['CDDS_API_KEY'] || initialConfig?.apiKey || '';
+	let email = existingVars['CDDS_EMAIL'] || initialConfig?.email || '';
+	let targets = existingVars['CDDS_TARGETS'] || initialConfig?.targets.join(', ') || '';
+	let zoneId = existingVars['CDDS_ZONE_ID'] || initialConfig?.zoneId || '';
+	let ttl = existingVars['CDDS_TTL'] || initialConfig?.ttl?.toString() || '60';
+	let interval = existingVars['CDDS_CHECK_INTERVAL'] || initialConfig?.checkIntervalMinutes?.toString() || '5';
+	let ipType = existingVars['CDDS_IP_TYPE'] || initialConfig?.ipType || 'ipv4';
+	let logs = existingVars['CDDS_LOG_LEVEL'] || (initialConfig?.logLevel !== 'error' ? 'info' : 'error');
+	let proxied = existingVars['CDDS_PROXIED'] || (initialConfig?.proxied ? 'true' : 'false');
+	let logFile = existingVars['CDDS_LOG_FILE'] || 'false';
+	
+	let systemdMode = existingVars['CDDS_SYSTEMD_MODE'] || process.env.CDDS_SYSTEMD_MODE || 'false';
+	let logFormat = existingVars['CDDS_LOG_FORMAT'] || initialConfig?.logFormat || 'text';
+	let logMaxLines = existingVars['CDDS_LOG_MAX_LINES'] || initialConfig?.logMaxLines?.toString() || '1000';
+	let debugMode = existingVars['CDDS_DEBUG'] || process.env.CDDS_DEBUG || 'false';
 
 	clearScreen();
 	console.log('\x1b[36m\x1b[1m--- .ENV CONFIGURATION WIZARD ---\x1b[0m\n');
@@ -323,10 +348,9 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 		{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
 	], proxied === 'false' ? 1 : 0);
 
-	let logFile = 'false';
 	const masterLogs = await selectPrompt('Do you want to enable logging?', [
 		{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-	], logs === 'false' ? 1 : 0);
+	], logs === 'error' && logFile === 'false' ? 1 : 0);
 
 	if (masterLogs === 'true') {
 		logs = await selectPrompt('Log level:', [
@@ -334,37 +358,56 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 			{ label: 'Debug (verbose)', value: 'debug' },
 			{ label: 'Warn (warnings and errors only)', value: 'warn' },
 			{ label: 'Error (errors only)', value: 'error' }
-		], 0) as string;
+		], ['info', 'debug', 'warn', 'error'].indexOf(logs) >= 0 ? ['info', 'debug', 'warn', 'error'].indexOf(logs) : 0) as string;
 		logFile = await selectPrompt('Save logs to a file (cdds.log)?', [
 			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-		]);
+		], logFile === 'true' ? 0 : 1);
 	} else {
 		logs = 'error';
 		logFile = 'false';
 	}
 
-	let existingLines: string[] = [];
-	const envPath = getEnvPath();
-	try {
-		const text = await fsPromises.readFile(envPath, 'utf8');
-		existingLines = text.split(/\r?\n/).filter(line => !line.trim().startsWith('CDDS_'));
-		// Remove trailing empty lines to prevent newline accumulation
-		while (existingLines.length > 0 && existingLines[existingLines.length - 1].trim() === '') {
-			existingLines.pop();
-		}
-	} catch { }
+	if (process.env.CDDS_DEBUG === 'true') {
+		console.log('\n\x1b[33m--- ADVANCED DEBUG SETTINGS ---\x1b[0m');
+		systemdMode = await selectPrompt('Enable Systemd Mode (disable file logging if journald is active)?', [
+			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+		], systemdMode === 'true' ? 0 : 1);
+		
+		logFormat = await selectPrompt('Log format:', [
+			{ label: 'Text', value: 'text' }, { label: 'JSON', value: 'json' }
+		], logFormat === 'json' ? 1 : 0);
+		
+		logMaxLines = await textPrompt('Max log lines (before rotation):', logMaxLines);
+		
+		debugMode = await selectPrompt('Enable CDDS_DEBUG permanently?', [
+			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+		], debugMode === 'true' ? 0 : 1);
+	}
+
+	existingVars['CDDS_API_KEY'] = apiKey;
+	if (email) existingVars['CDDS_EMAIL'] = email;
+	else delete existingVars['CDDS_EMAIL'];
+	existingVars['CDDS_TARGETS'] = targets;
+	if (zoneId) existingVars['CDDS_ZONE_ID'] = zoneId;
+	else delete existingVars['CDDS_ZONE_ID'];
+	existingVars['CDDS_TTL'] = ttl;
+	existingVars['CDDS_CHECK_INTERVAL'] = interval;
+	existingVars['CDDS_IP_TYPE'] = ipType;
+	existingVars['CDDS_PROXIED'] = proxied;
+	existingVars['CDDS_LOG_LEVEL'] = logs;
+	existingVars['CDDS_LOG_FILE'] = logFile;
+	
+	if (process.env.CDDS_DEBUG === 'true') {
+		existingVars['CDDS_SYSTEMD_MODE'] = systemdMode;
+		existingVars['CDDS_LOG_FORMAT'] = logFormat;
+		existingVars['CDDS_LOG_MAX_LINES'] = logMaxLines;
+		existingVars['CDDS_DEBUG'] = debugMode;
+	}
 
 	let envContent = existingLines.length > 0 ? existingLines.join('\n') + '\n\n' : '';
-	envContent += `CDDS_API_KEY=${apiKey}\n`;
-	if (email) envContent += `CDDS_EMAIL=${email}\n`;
-	envContent += `CDDS_TARGETS=${targets}\n`;
-	if (zoneId) envContent += `CDDS_ZONE_ID=${zoneId}\n`;
-	envContent += `CDDS_TTL=${ttl}\n`;
-	envContent += `CDDS_CHECK_INTERVAL=${interval}\n`;
-	envContent += `CDDS_IP_TYPE=${ipType}\n`;
-	envContent += `CDDS_PROXIED=${proxied}\n`;
-	envContent += `CDDS_LOG_LEVEL=${logs}\n`;
-	envContent += `CDDS_LOG_FILE=${logFile}\n`;
+	for (const [key, value] of Object.entries(existingVars)) {
+		envContent += `${key}=${value}\n`;
+	}
 
 	try {
 		await fsPromises.mkdir(dirname(envPath), { recursive: true });
