@@ -809,6 +809,7 @@ class CloudflareDDNS {
   public async start(): Promise<void> {
     const intervalMinutes = this.config.checkIntervalMinutes!;
     if (this.config.logs) {
+      console.log("─".repeat(50));
       console.log(
         `Starting Cloudflare DDNS service for ${this.config.targets.length} target${
           this.config.targets.length > 1 ? "s" : ""
@@ -844,7 +845,7 @@ class CloudflareDDNS {
       await new Promise(resolve => setTimeout(resolve, intervalMinutes * 60 * 1000));
       if (this.config.logs) {
         console.log("─".repeat(50));
-        console.log(`${datr({ precision: 'ms', separator: '-' })} - Running scheduled check`);
+        console.log("Running scheduled check");
       }
       await this.performUpdate();
     }
