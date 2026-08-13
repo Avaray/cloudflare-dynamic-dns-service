@@ -134,12 +134,26 @@ const clearScreen = () => {
 	process.stdout.write('\x1Bc');
 };
 
-const textPrompt = (question: string, defaultValue: string = ''): Promise<string> => {
-	return new Promise((resolve) => {
+const textPrompt = (question: string, defaultValue: string = '', allowSaveAction: boolean = false): Promise<string> => {
+	return new Promise((resolve, reject) => {
 		process.stdout.write('\x1B[2J\x1B[0;0H'); // Clear and move to top
-		console.log(`\x1b[36m\x1b[1m${question}\x1b[0m\n`);
+		console.log(`\x1b[36m\x1b[1m${question}\x1b[0m`);
+		if (allowSaveAction) console.log(`\x1b[90m(Press Ctrl+S to save immediately and return)\x1b[0m\n`);
+		else console.log();
+		
 		const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+		
+		const onKeyPress = (str: string, key: any) => {
+			if (allowSaveAction && key && key.ctrl && key.name === 's') {
+				process.stdin.removeListener('keypress', onKeyPress);
+				rl.close();
+				reject(new Error('SAVE_AND_RETURN'));
+			}
+		};
+		process.stdin.on('keypress', onKeyPress);
+		
 		rl.question(`\x1b[32m❯\x1b[0m ${defaultValue ? `[${defaultValue}] ` : ''}`, (answer) => {
+			process.stdin.removeListener('keypress', onKeyPress);
 			rl.close();
 			resolve(answer.trim() || defaultValue);
 		});
@@ -147,8 +161,8 @@ const textPrompt = (question: string, defaultValue: string = ''): Promise<string
 };
 
 type SelectItem = { label: string; value: string; disabled?: boolean };
-const selectPrompt = (question: string, items: SelectItem[], defaultIndex: number = 0): Promise<string> => {
-	return new Promise((resolve) => {
+const selectPrompt = (question: string, items: SelectItem[], defaultIndex: number = 0, allowSaveAction: boolean = false): Promise<string> => {
+	return new Promise((resolve, reject) => {
 		// If the default index lands on a disabled item, find the first enabled one
 		const firstEnabled = items.findIndex((item) => !item.disabled);
 		let selectedIndex = items[defaultIndex]?.disabled ? (firstEnabled >= 0 ? firstEnabled : 0) : defaultIndex;
@@ -156,7 +170,9 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 		
 		const renderMenu = () => {
 			process.stdout.write('\x1B[2J\x1B[0;0H'); // Clear and move to top
-			console.log(`\x1b[36m\x1b[1m${question}\x1b[0m\n`);
+			console.log(`\x1b[36m\x1b[1m${question}\x1b[0m`);
+			if (allowSaveAction) console.log(`\x1b[90m(Press Ctrl+S to save immediately and return)\x1b[0m\n`);
+			else console.log();
 			items.forEach((item, index) => {
 				if (item.disabled) {
 					// Dark gray — visually unavailable but readable
@@ -182,7 +198,10 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 
 		const onKeyPress = (str: string, key: any) => {
 			if (!key) return;
-			if (key.name === 'up') {
+			if (allowSaveAction && key.ctrl && key.name === 's') {
+				cleanup();
+				reject(new Error('SAVE_AND_RETURN'));
+			} else if (key.name === 'up') {
 				moveCursor(-1);
 				renderMenu();
 			} else if (key.name === 'down') {
@@ -216,8 +235,14 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 			// Fallback if not TTY
 			rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 			console.log(question);
+			if (allowSaveAction) console.log(`(Type '!save' to save immediately and return)`);
 			items.forEach((item, i) => console.log(`${i + 1}. ${item.label}${item.disabled ? ' (unavailable)' : ''}`));
 			rl.question('Select option number: ', (answer) => {
+				if (allowSaveAction && answer.trim().toLowerCase() === '!save') {
+					cleanup();
+					reject(new Error('SAVE_AND_RETURN'));
+					return;
+				}
 				const idx = parseInt(answer, 10) - 1;
 				cleanup();
 				resolve(items[idx] && !items[idx].disabled ? items[idx].value : items[firstEnabled >= 0 ? firstEnabled : 0].value);
@@ -330,67 +355,73 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	let logMaxLines = existingVars['CDDS_LOG_MAX_LINES'] || initialConfig?.logMaxLines?.toString() || '1000';
 	let debugMode = existingVars['CDDS_DEBUG'] || process.env.CDDS_DEBUG || 'false';
 
-	apiKey = await textPrompt('Cloudflare API Key / Token:', apiKey);
-	const keyType = detectApiKeyType(apiKey);
-	if (keyType === 'key') {
-		email = await textPrompt('Cloudflare Email (required for Global API Key):', email);
-	} else {
-		email = ''; // Clear email if it's a token
-	}
-	targets = await textPrompt('Targets (comma separated, e.g. sub.domain.com):', targets);
-	zoneId = await textPrompt('Zone ID (Optional, leave empty for auto-discover):', zoneId);
-	ttl = await textPrompt('TTL in seconds:', ttl);
-	interval = await textPrompt('Check interval in minutes:', interval);
-	ipType = await selectPrompt('IP Type to update:', [
-		{ label: 'IPv4 (A)', value: 'ipv4' },
-		{ label: 'IPv6 (AAAA)', value: 'ipv6' },
-		{ label: 'Both (A + AAAA)', value: 'both' }
-	], ipType === 'both' ? 2 : (ipType === 'ipv6' ? 1 : 0)) as any;
+	try {
+		apiKey = await textPrompt('Cloudflare API Key / Token:', apiKey, true);
+		const keyType = detectApiKeyType(apiKey);
+		if (keyType === 'key') {
+			email = await textPrompt('Cloudflare Email (required for Global API Key):', email, true);
+		} else {
+			email = ''; // Clear email if it's a token
+		}
+		targets = await textPrompt('Targets (comma separated, e.g. sub.domain.com):', targets, true);
+		zoneId = await textPrompt('Zone ID (Optional, leave empty for auto-discover):', zoneId, true);
+		ttl = await textPrompt('TTL in seconds:', ttl, true);
+		interval = await textPrompt('Check interval in minutes:', interval, true);
+		ipType = await selectPrompt('IP Type to update:', [
+			{ label: 'IPv4 (A)', value: 'ipv4' },
+			{ label: 'IPv6 (AAAA)', value: 'ipv6' },
+			{ label: 'Both (A + AAAA)', value: 'both' }
+		], ipType === 'both' ? 2 : (ipType === 'ipv6' ? 1 : 0), true) as any;
 
-	proxied = await selectPrompt('Enable Cloudflare Proxy (Orange Cloud)?', [
-		{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-	], proxied === 'false' ? 1 : 0);
+		proxied = await selectPrompt('Enable Cloudflare Proxy (Orange Cloud)?', [
+			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+		], proxied === 'false' ? 1 : 0, true);
 
-	const masterLogs = await selectPrompt('Do you want to enable logging?', [
-		{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-	], logs === 'error' && logFile === 'false' ? 1 : 0);
+		const masterLogs = await selectPrompt('Do you want to enable logging?', [
+			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+		], logs === 'error' && logFile === 'false' ? 1 : 0, true);
 
-	if (masterLogs === 'true') {
-		logs = await selectPrompt('Log level:', [
-			{ label: 'Info (recommended)', value: 'info' },
-			{ label: 'Debug (verbose)', value: 'debug' },
-			{ label: 'Warn (warnings and errors only)', value: 'warn' },
-			{ label: 'Error (errors only)', value: 'error' }
-		], ['info', 'debug', 'warn', 'error'].indexOf(logs) >= 0 ? ['info', 'debug', 'warn', 'error'].indexOf(logs) : 0) as string;
-		logConsole = await selectPrompt('Output logs to console?', [
-			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-		], logConsole === 'true' ? 0 : 1);
-		logFile = await selectPrompt('Save logs to a file (cdds.log)?', [
-			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-		], logFile === 'true' ? 0 : 1);
-		logEndpoint = await textPrompt('Send logs to HTTP Endpoint URL (leave empty to disable):', logEndpoint === 'false' ? '' : logEndpoint);
-		if (!logEndpoint) logEndpoint = 'false';
-	} else {
-		logs = 'error';
-		logConsole = 'false';
-		logFile = 'false';
-		logEndpoint = 'false';
-	}
+		if (masterLogs === 'true') {
+			logs = await selectPrompt('Log level:', [
+				{ label: 'Info (recommended)', value: 'info' },
+				{ label: 'Debug (verbose)', value: 'debug' },
+				{ label: 'Warn (warnings and errors only)', value: 'warn' },
+				{ label: 'Error (errors only)', value: 'error' }
+			], ['info', 'debug', 'warn', 'error'].indexOf(logs) >= 0 ? ['info', 'debug', 'warn', 'error'].indexOf(logs) : 0, true) as string;
+			logConsole = await selectPrompt('Output logs to console?', [
+				{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+			], logConsole === 'true' ? 0 : 1, true);
+			logFile = await selectPrompt('Save logs to a file (cdds.log)?', [
+				{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+			], logFile === 'true' ? 0 : 1, true);
+			logEndpoint = await textPrompt('Send logs to HTTP Endpoint URL (leave empty to disable):', logEndpoint === 'false' ? '' : logEndpoint, true);
+			if (!logEndpoint) logEndpoint = 'false';
+		} else {
+			logs = 'error';
+			logConsole = 'false';
+			logFile = 'false';
+			logEndpoint = 'false';
+		}
 
-	if (process.env.CDDS_DEBUG === 'true') {
-		systemdMode = await selectPrompt('Enable Systemd Mode (disable file logging if journald is active)?', [
-			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-		], systemdMode === 'true' ? 0 : 1);
-		
-		logFormat = await selectPrompt('Log format:', [
-			{ label: 'Text', value: 'text' }, { label: 'JSON', value: 'json' }
-		], logFormat === 'json' ? 1 : 0);
-		
-		logMaxLines = await textPrompt('Max log lines (before rotation):', logMaxLines);
-		
-		debugMode = await selectPrompt('Enable CDDS_DEBUG permanently?', [
-			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-		], debugMode === 'true' ? 0 : 1);
+		if (process.env.CDDS_DEBUG === 'true') {
+			systemdMode = await selectPrompt('Enable Systemd Mode (disable file logging if journald is active)?', [
+				{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+			], systemdMode === 'true' ? 0 : 1, true);
+			
+			logFormat = await selectPrompt('Log format:', [
+				{ label: 'Text', value: 'text' }, { label: 'JSON', value: 'json' }
+			], logFormat === 'json' ? 1 : 0, true);
+			
+			logMaxLines = await textPrompt('Max log lines (before rotation):', logMaxLines, true);
+			
+			debugMode = await selectPrompt('Enable CDDS_DEBUG permanently?', [
+				{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
+			], debugMode === 'true' ? 0 : 1, true);
+		}
+	} catch (e: any) {
+		if (e.message !== 'SAVE_AND_RETURN') {
+			throw e;
+		}
 	}
 
 	existingVars['CDDS_API_KEY'] = apiKey;
