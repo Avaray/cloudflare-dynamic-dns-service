@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.14.0] - 2026-08-13
+
+### Added
+- **Wizard — advanced debug settings**: Added an advanced debug configuration section to the interactive wizard. This menu is accessible only when the `CDDS_DEBUG=true` environment variable is present and allows modifying systemd mode, log format, max log lines, and enabling the debug mode permanently.
+
+### Changed
+- **Wizard — non-destructive updates**: The configuration wizard no longer wipes out manually added `CDDS_` environment variables from the `.env` file. It now intelligently parses existing configurations, overwrites only what's modified through the wizard, and safely preserves any custom or unprompted configurations.
+
+---
+
 ## [1.13.2] - 2026-08-12
 
 ### Fixed
