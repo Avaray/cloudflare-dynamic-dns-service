@@ -1042,6 +1042,8 @@ const runDaemonManager = async () => {
 
 		let running = false;
 		let pid: number | null = null;
+		let requiresElevated = false;
+		let staleProtected = false;
 		
 		try {
 			if (await fileExists(getPidFile())) {
@@ -1051,26 +1053,52 @@ const runDaemonManager = async () => {
 						process.kill(stored, 0);
 						pid = stored;
 						running = true;
-					} catch {
-						await fsPromises.writeFile(getPidFile(), '', "utf8");
+					} catch (e: any) {
+						if (e.code === 'EPERM') {
+							pid = stored;
+							running = true;
+							requiresElevated = true;
+						} else {
+							try {
+								await fsPromises.writeFile(getPidFile(), '', "utf8");
+							} catch (writeErr: any) {
+								if (writeErr.code === 'EACCES' || writeErr.code === 'EPERM') {
+									staleProtected = true;
+								}
+							}
+						}
 					}
 				}
 			}
 		} catch {}
 
 		const items = [
-			...(!running ? [{ label: `Start Daemon (background)${disableMsg}`, value: 'start', disabled: !isConfigValid }] : []),
-			...(running ? [{ label: `Reload Daemon (restart with latest config)${disableMsg}`, value: 'reload', disabled: !isConfigValid }] : []),
-			...(running ? [{ label: 'Stop Daemon', value: 'stop' }] : []),
+			...(staleProtected ? [{ label: '\x1b[31m[!] Stale PID file requires sudo to clean\x1b[0m', value: 'stale_clean' }] : []),
+			...(!running ? [{ label: `Start Daemon (background)${disableMsg}`, value: 'start', disabled: !isConfigValid || staleProtected }] : []),
+			...(running ? [{ label: `Reload Daemon (restart with latest config)${disableMsg}`, value: 'reload', disabled: !isConfigValid || requiresElevated }] : []),
+			...(running ? [{ label: 'Stop Daemon', value: 'stop', disabled: requiresElevated }] : []),
 			{ label: 'Refresh Status', value: 'refresh' },
 			{ label: 'Go Back', value: 'back' },
 		];
 
-		const action = await selectPrompt(`--- DAEMON MANAGER (Built-in) ---\nStatus: ${running ? '\x1b[32mRunning\x1b[0m (PID: ' + pid + ')' : '\x1b[31mStopped\x1b[0m'}`, items);
+		let statusText = '\x1b[31mStopped\x1b[0m';
+		if (running) {
+			statusText = `\x1b[32mRunning\x1b[0m (PID: ${pid})`;
+			if (requiresElevated) statusText += ' — \x1b[31m[Requires Sudo]\x1b[0m';
+		} else if (staleProtected) {
+			statusText = `\x1b[31mStopped\x1b[0m — \x1b[31m[PID file locked by another user]\x1b[0m`;
+		}
+
+		const action = await selectPrompt(`--- DAEMON MANAGER (Built-in) ---\nStatus: ${statusText}`, items);
 
 
 		if (action === 'back') break;
 		if (action === 'refresh') continue;
+		if (action === 'stale_clean') {
+			console.log('\x1b[31mERROR: The PID file is locked by another user (likely root). Please run "sudo cdds daemon" to clean it up.\x1b[0m');
+			await pausePrompt();
+			continue;
+		}
 
 		try {
 			if (action === 'start') {
@@ -1482,9 +1510,17 @@ const main = async () => {
 			await fsPromises.writeFile(getPidFile(), '', "utf8");
 			console.log(`CDDS daemon stopped (PID: ${pid}).`);
 		} catch (err: any) {
-			if (err.code === 'ESRCH') {
-				console.log("CDDS daemon is not running (stale PID file removed).");
-				await fsPromises.writeFile(getPidFile(), '', "utf8");
+			if (err.code === 'EPERM') {
+				console.error("Failed to stop daemon: Process is locked by another user (likely root). Try 'sudo cdds stop'.");
+				process.exit(1);
+			} else if (err.code === 'ESRCH') {
+				console.log("CDDS daemon is not running (stale PID file found).");
+				try {
+					await fsPromises.writeFile(getPidFile(), '', "utf8");
+					console.log("Stale PID file cleaned up successfully.");
+				} catch (cleanErr: any) {
+					console.log("Failed to clean up stale PID file. You may need to use 'sudo' to clean it.");
+				}
 			} else {
 				console.error(`Failed to stop daemon: ${err.message}`);
 				process.exit(1);
@@ -1505,9 +1541,13 @@ const main = async () => {
 			try {
 				process.kill(pid, 0);
 				console.log(`CDDS daemon: RUNNING (PID: ${pid})`);
-			} catch {
-				console.log(`CDDS daemon: NOT running (stale PID: ${pid}).`);
-				await fsPromises.writeFile(getPidFile(), '', "utf8");
+			} catch (err: any) {
+				if (err.code === 'EPERM') {
+					console.log(`CDDS daemon: RUNNING (PID: ${pid}) [Requires Sudo to manage]`);
+				} else {
+					console.log(`CDDS daemon: NOT running (stale PID: ${pid}).`);
+					try { await fsPromises.writeFile(getPidFile(), '', "utf8"); } catch {}
+				}
 			}
 		} catch (err: any) {
 			console.error(`Status check failed: ${err.message}`);
