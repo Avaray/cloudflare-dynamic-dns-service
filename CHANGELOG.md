@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.14.1] - 2026-08-13
+
+### Fixed
+- **Daemon Manager — UX improvements**: The `textPrompt` function used for typing free-form answers (e.g. max log lines) now correctly clears the screen and uses the same visual styling as `selectPrompt`. This makes the entire wizard perfectly consistent and full-screen for each question.
+- **Daemon Manager — stale PID & EPERM handling**: The built-in daemon manager correctly detects and handles edge cases with process permissions. If the daemon process is running but owned by `root`, the manager will now indicate that sudo is required to manage it and will disable stop/reload actions. Additionally, if the process is dead but its PID file is locked and cannot be deleted due to permissions, the manager will warn the user and provide a new action prompting them to use `sudo` to clean it up. The standalone `cdds status` and `cdds stop` commands have also been updated to gracefully handle these `EPERM` / `EACCES` scenarios.
+
+---
+
 ## [1.14.0] - 2026-08-13
 
 ### Added
