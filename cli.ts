@@ -136,41 +136,54 @@ const clearScreen = () => {
 
 const textPrompt = (question: string, defaultValue: string = '', allowSaveAction: boolean = false): Promise<string> => {
 	return new Promise((resolve, reject) => {
-		process.stdout.write('\x1B[2J\x1B[0;0H'); // Clear and move to top
-		console.log(`\x1b[36m\x1b[1m${question}\x1b[0m`);
-		const hints: string[] = [];
-		if (allowSaveAction) hints.push('Ctrl+S — save & return');
-		if (defaultValue) hints.push('Ctrl+D — clear value');
-		if (hints.length > 0) console.log(`\x1b[90m(${hints.join('  |  ')})\x1b[0m\n`);
-		else console.log();
-		
-		const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-		
-		const onKeyPress = (str: string, key: any) => {
-			if (!key) return;
-			if (allowSaveAction && key.ctrl && key.name === 's') {
-				process.stdin.removeListener('keypress', onKeyPress);
-				rl.close();
-				reject(new Error('SAVE_AND_RETURN'));
-			} else if (defaultValue && key.ctrl && key.name === 'd') {
-				process.stdin.removeListener('keypress', onKeyPress);
-				rl.close();
-				resolve('');
-			}
+		let currentDefault = defaultValue;
+
+		const render = () => {
+			process.stdout.write('\x1B[2J\x1B[0;0H');
+			console.log(`\x1b[36m\x1b[1m${question}\x1b[0m`);
+			const hints: string[] = [];
+			if (allowSaveAction) hints.push('Ctrl+S — save & return');
+			if (currentDefault) hints.push('Ctrl+D — clear value');
+			if (hints.length > 0) console.log(`\x1b[90m(${hints.join('  |  ')})\x1b[0m\n`);
+			else console.log();
 		};
-		process.stdin.on('keypress', onKeyPress);
-		
-		rl.question(`\x1b[32m❯\x1b[0m ${defaultValue ? `[${defaultValue}] ` : ''}`, (answer) => {
-			process.stdin.removeListener('keypress', onKeyPress);
-			rl.close();
-			if (answer.trim().toLowerCase() === '!clear') {
-				resolve('');
-			} else {
-				resolve(answer.trim() || defaultValue);
-			}
-		});
+
+		const startPrompt = () => {
+			render();
+			const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+			const onKeyPress = (str: string, key: any) => {
+				if (!key) return;
+				if (allowSaveAction && key.ctrl && key.name === 's') {
+					process.stdin.removeListener('keypress', onKeyPress);
+					rl.close();
+					reject(new Error('SAVE_AND_RETURN'));
+				} else if (currentDefault && key.ctrl && key.name === 'd') {
+					process.stdin.removeListener('keypress', onKeyPress);
+					rl.close();
+					currentDefault = '';
+					// Stay on the same prompt, re-rendered without the old value
+					setImmediate(startPrompt);
+				}
+			};
+			process.stdin.on('keypress', onKeyPress);
+
+			rl.question(`\x1b[32m❯\x1b[0m ${currentDefault ? `[${currentDefault}] ` : ''}`, (answer) => {
+				process.stdin.removeListener('keypress', onKeyPress);
+				rl.close();
+				if (answer.trim().toLowerCase() === '!clear') {
+					currentDefault = '';
+					setImmediate(startPrompt);
+				} else {
+					resolve(answer.trim() || currentDefault);
+				}
+			});
+		};
+
+		startPrompt();
 	});
 };
+
 
 type SelectItem = { label: string; value: string; disabled?: boolean };
 const selectPrompt = (question: string, items: SelectItem[], defaultIndex: number = 0, allowSaveAction: boolean = false): Promise<string> => {
