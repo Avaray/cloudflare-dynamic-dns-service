@@ -336,6 +336,7 @@ const parseEnv = async (): Promise<CloudflareConfig | null> => {
 			logConsole: env.CDDS_LOG_CONSOLE !== 'false',
 			logFile: env.CDDS_LOG_FILE === 'true' || env.CDDS_ACTION_LOGFILE === 'true' || env.CDDS_IP_LOGFILE === 'true',
 			logEndpoint: env.CDDS_LOG_ENDPOINT && env.CDDS_LOG_ENDPOINT.toLowerCase() !== 'false' ? env.CDDS_LOG_ENDPOINT : false,
+			logEndpointLevel: (env.CDDS_LOG_ENDPOINT_LEVEL as any) || undefined,
 			discordMessageFormat: env.CDDS_DISCORD_MESSAGE_FORMAT || '**[{level}]** {message}',
 			logFormat: (env.CDDS_LOG_FORMAT as any) ?? 'text',
 			logMaxLines: parseInt(env.CDDS_LOG_MAX_LINES ?? '1000', 10),
@@ -381,6 +382,7 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	let logConsole = existingVars['CDDS_LOG_CONSOLE'] || (initialConfig?.logConsole === false ? 'false' : 'true');
 	let logFile = existingVars['CDDS_LOG_FILE'] || 'false';
 	let logEndpoint = existingVars['CDDS_LOG_ENDPOINT'] || (initialConfig?.logEndpoint || 'false');
+	let logEndpointLevel = existingVars['CDDS_LOG_ENDPOINT_LEVEL'] || initialConfig?.logEndpointLevel || 'ip_only';
 	let discordMessageFormat = existingVars['CDDS_DISCORD_MESSAGE_FORMAT'] || initialConfig?.discordMessageFormat || '**[{level}]** {message}';
 	
 	let systemdMode = existingVars['CDDS_SYSTEMD_MODE'] || process.env.CDDS_SYSTEMD_MODE || 'false';
@@ -431,8 +433,18 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 			logEndpoint = await textPrompt('Send logs to HTTP Endpoint URL (leave empty to disable):', logEndpoint === 'false' ? '' : logEndpoint, true);
 			if (!logEndpoint) {
 				logEndpoint = 'false';
-			} else if (logEndpoint.includes('discord.com/api/webhooks')) {
-				discordMessageFormat = await textPrompt('Discord Webhook detected! Message format (variables: {level}, {tag}, {timestamp}, {message}):', discordMessageFormat, true);
+			} else {
+				logEndpointLevel = await selectPrompt('Log level for the endpoint (can differ from main log level):', [
+					{ label: 'Same as main log level', value: '' },
+					{ label: 'Info', value: 'info' },
+					{ label: 'Debug (verbose)', value: 'debug' },
+					{ label: 'Warn (warnings and errors only)', value: 'warn' },
+					{ label: 'Error (errors only)', value: 'error' },
+					{ label: 'IP changes only', value: 'ip_only' }
+				], ['', 'info', 'debug', 'warn', 'error', 'ip_only'].indexOf(logEndpointLevel) >= 0 ? ['', 'info', 'debug', 'warn', 'error', 'ip_only'].indexOf(logEndpointLevel) : 0, true) as string;
+				if (logEndpoint.includes('discord.com/api/webhooks')) {
+					discordMessageFormat = await textPrompt('Discord Webhook detected! Message format (variables: {level}, {tag}, {timestamp}, {message}):', discordMessageFormat, true);
+				}
 			}
 		} else {
 			logs = 'error';
@@ -477,6 +489,8 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	existingVars['CDDS_LOG_FILE'] = logFile;
 	if (logEndpoint !== 'false') {
 		existingVars['CDDS_LOG_ENDPOINT'] = logEndpoint;
+		if (logEndpointLevel) existingVars['CDDS_LOG_ENDPOINT_LEVEL'] = logEndpointLevel;
+		else delete existingVars['CDDS_LOG_ENDPOINT_LEVEL'];
 		if (logEndpoint.includes('discord.com/api/webhooks')) {
 			existingVars['CDDS_DISCORD_MESSAGE_FORMAT'] = discordMessageFormat;
 		} else {
@@ -484,6 +498,7 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 		}
 	} else {
 		delete existingVars['CDDS_LOG_ENDPOINT'];
+		delete existingVars['CDDS_LOG_ENDPOINT_LEVEL'];
 		delete existingVars['CDDS_DISCORD_MESSAGE_FORMAT'];
 	}
 	

@@ -45,6 +45,7 @@ interface CloudflareConfig {
   logConsole: boolean;
   logFile: boolean | string;
   logEndpoint?: string | false;
+  logEndpointLevel?: LogLevel;
   discordMessageFormat?: string;
   logFormat: "text" | "json";
   logLevel: LogLevel;
@@ -913,6 +914,7 @@ const config: CloudflareConfig = {
   logLevel: (process.env.CDDS_LOG_LEVEL as LogLevel) ?? (process.env.CDDS_LOGS === "false" ? "error" : "info"),
   logFile: logFileValue,
   logEndpoint: logEndpointValue,
+  logEndpointLevel: (process.env.CDDS_LOG_ENDPOINT_LEVEL as LogLevel) || undefined,
   discordMessageFormat: process.env.CDDS_DISCORD_MESSAGE_FORMAT ?? "**[{level}]** {message}",
   logFormat: (process.env.CDDS_LOG_FORMAT as "text" | "json") ?? "text",
   logMaxLines: parseInt(process.env.CDDS_LOG_MAX_LINES ?? "1000"),
@@ -971,6 +973,9 @@ function validateConfig(config: CloudflareConfig): void {
   }
   if (config.logLevel && !["debug", "info", "warn", "error", "ip_only"].includes(config.logLevel)) {
     throw new Error("Log level must be one of: debug, info, warn, error, ip_only");
+  }
+  if (config.logEndpointLevel && !["debug", "info", "warn", "error", "ip_only"].includes(config.logEndpointLevel)) {
+    throw new Error("Endpoint log level must be one of: debug, info, warn, error, ip_only");
   }
   
   if (config.logEndpoint) {
@@ -1072,6 +1077,16 @@ export async function startDaemon() {
     }
 
     if (config.logEndpoint) {
+      // Apply separate log level filter for the endpoint if configured
+      const epLevel = config.logEndpointLevel;
+      if (epLevel) {
+        if (epLevel === "ip_only") {
+          if (tag !== "IP_CHANGE") return;
+        } else {
+          if (logLevelOrder[level as Exclude<LogLevel, "ip_only">] < logLevelOrder[epLevel as Exclude<LogLevel, "ip_only">]) return;
+        }
+      }
+
       const isDiscord = config.logEndpoint.includes("discord.com/api/webhooks");
       let payload: any;
       
