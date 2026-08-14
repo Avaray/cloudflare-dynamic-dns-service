@@ -419,8 +419,9 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 				{ label: 'Info (recommended)', value: 'info' },
 				{ label: 'Debug (verbose)', value: 'debug' },
 				{ label: 'Warn (warnings and errors only)', value: 'warn' },
-				{ label: 'Error (errors only)', value: 'error' }
-			], ['info', 'debug', 'warn', 'error'].indexOf(logs) >= 0 ? ['info', 'debug', 'warn', 'error'].indexOf(logs) : 0, true) as string;
+				{ label: 'Error (errors only)', value: 'error' },
+				{ label: 'IP changes only', value: 'ip_only' }
+			], ['info', 'debug', 'warn', 'error', 'ip_only'].indexOf(logs) >= 0 ? ['info', 'debug', 'warn', 'error', 'ip_only'].indexOf(logs) : 0, true) as string;
 			logConsole = await selectPrompt('Output logs to console?', [
 				{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
 			], logConsole === 'true' ? 0 : 1, true);

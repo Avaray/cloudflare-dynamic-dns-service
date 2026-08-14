@@ -32,7 +32,7 @@ try {
   // .env file is optional, ignore if not found
 }
 
-type LogLevel = "debug" | "info" | "warn" | "error";
+type LogLevel = "debug" | "info" | "warn" | "error" | "ip_only";
 
 interface CloudflareConfig {
   apiKey: string;
@@ -969,6 +969,9 @@ function validateConfig(config: CloudflareConfig): void {
   if (config.ipType && !["ipv4", "ipv6", "both"].includes(config.ipType)) {
     throw new Error("IP Type must be either 'ipv4' or 'ipv6'");
   }
+  if (config.logLevel && !["debug", "info", "warn", "error", "ip_only"].includes(config.logLevel)) {
+    throw new Error("Log level must be one of: debug, info, warn, error, ip_only");
+  }
   
   if (config.logEndpoint) {
     try {
@@ -987,7 +990,7 @@ export { CloudflareDDNS, detectApiKeyType, getTargets, validateConfig, type Clou
 
 // Main execution
 export async function startDaemon() {
-  const logLevelOrder: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
+  const logLevelOrder: Record<Exclude<LogLevel, "ip_only">, number> = { debug: 0, info: 1, warn: 2, error: 3 };
   const logDir = getLogDir();
   let logFilePath = resolve(logDir, "cdds.log");
 
@@ -1014,7 +1017,11 @@ export async function startDaemon() {
   let logLinesCounter = 0;
 
   function writeLog(level: LogLevel, tag: string, args: any[]) {
-    if (logLevelOrder[level] < logLevelOrder[config.logLevel]) return;
+    if (config.logLevel === "ip_only") {
+      if (tag !== "IP_CHANGE") return;
+    } else {
+      if (logLevelOrder[level as Exclude<LogLevel, "ip_only">] < logLevelOrder[config.logLevel as Exclude<LogLevel, "ip_only">]) return;
+    }
 
     const ts = datr({ precision: "ms", separator: "-" });
     const rawMsg = args.map((a) => (typeof a === "string" ? a : String(a))).join(" ");
@@ -1107,7 +1114,7 @@ export async function startDaemon() {
     console.error(`CDDS_TARGETS=subdomain.domain.com,another.domain.com`);
     console.error(`CDDS_ZONE_ID=optional_zone_id`);
     console.error(`CDDS_TTL=300 (in seconds)`);
-    console.error(`CDDS_LOG_LEVEL=info (debug, info, warn, error)`);
+    console.error(`CDDS_LOG_LEVEL=info (debug, info, warn, error, ip_only)`);
     console.error(`CDDS_LOG_CONSOLE=true`);
     console.error(`CDDS_LOG_FILE=true`);
     console.error(`CDDS_LOG_ENDPOINT=http://example.com/logs`);
