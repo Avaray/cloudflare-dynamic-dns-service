@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.15.0] - 2026-08-14
+
+### Added
+- **Wizard — back/forward navigation**: Added the ability to navigate backward (`Ctrl+Left`) and forward (`Ctrl+Right`) through the configuration wizard prompts without losing input data.
+- **Wizard — quick field clear**: Added `Ctrl+D` shortcut and `!clear` text command to easily erase the current value of a configuration input field.
+- **Wizard — save and exit**: Added `Ctrl+S` shortcut to instantly save the current configuration and return to the main menu without answering remaining prompts.
+- **Logging — native Discord webhook support**: Added auto-detection for Discord webhook URLs in the logging endpoint configuration (`CDDS_LOG_ENDPOINT`). The service now automatically formats payloads for Discord and prompts for a custom bot username (`CDDS_DISCORD_USERNAME`) and message format (`CDDS_DISCORD_MESSAGE_FORMAT`).
+- **Logging — endpoint isolation**: Introduced `CDDS_LOG_ENDPOINT_LEVEL`, allowing HTTP/Discord endpoints to use a different log level than the console/file output (e.g. log errors locally, but send `ip_only` to Discord).
+- **Logging — new IP-only log level**: Added an `ip_only` log level that silences all system/service logs and strictly triggers only when an IP change event occurs.
+
+### Changed
+- **Wizard — improved text prompts**: Text prompts now display the current configuration value cleanly on a dedicated line above the input cursor, improving readability.
+
+### Fixed
+- **Wizard — navigation boundaries**: Navigation shortcuts (`Ctrl+Left/Right`) are now strictly disabled outside of the wizard to prevent unhandled rejection crashes in the main menu.
+- **Wizard — missing variable**: Fixed a regression where the `logConsole` setting was missing from the generated wizard state.
+- **Wizard — prompt re-render issue**: Fixed a bug where clearing an input field with `Ctrl+D` would fail to keep the prompt open and correctly re-render the empty value.
+
+---
+
 ## [1.14.1] - 2026-08-13
 
 ### Fixed
