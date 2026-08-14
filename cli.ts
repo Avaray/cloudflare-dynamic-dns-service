@@ -138,16 +138,24 @@ const textPrompt = (question: string, defaultValue: string = '', allowSaveAction
 	return new Promise((resolve, reject) => {
 		process.stdout.write('\x1B[2J\x1B[0;0H'); // Clear and move to top
 		console.log(`\x1b[36m\x1b[1m${question}\x1b[0m`);
-		if (allowSaveAction) console.log(`\x1b[90m(Press Ctrl+S to save immediately and return)\x1b[0m\n`);
+		const hints: string[] = [];
+		if (allowSaveAction) hints.push('Ctrl+S — save & return');
+		if (defaultValue) hints.push('Ctrl+D — clear value');
+		if (hints.length > 0) console.log(`\x1b[90m(${hints.join('  |  ')})\x1b[0m\n`);
 		else console.log();
 		
 		const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 		
 		const onKeyPress = (str: string, key: any) => {
-			if (allowSaveAction && key && key.ctrl && key.name === 's') {
+			if (!key) return;
+			if (allowSaveAction && key.ctrl && key.name === 's') {
 				process.stdin.removeListener('keypress', onKeyPress);
 				rl.close();
 				reject(new Error('SAVE_AND_RETURN'));
+			} else if (defaultValue && key.ctrl && key.name === 'd') {
+				process.stdin.removeListener('keypress', onKeyPress);
+				rl.close();
+				resolve('');
 			}
 		};
 		process.stdin.on('keypress', onKeyPress);
@@ -155,7 +163,11 @@ const textPrompt = (question: string, defaultValue: string = '', allowSaveAction
 		rl.question(`\x1b[32m❯\x1b[0m ${defaultValue ? `[${defaultValue}] ` : ''}`, (answer) => {
 			process.stdin.removeListener('keypress', onKeyPress);
 			rl.close();
-			resolve(answer.trim() || defaultValue);
+			if (answer.trim().toLowerCase() === '!clear') {
+				resolve('');
+			} else {
+				resolve(answer.trim() || defaultValue);
+			}
 		});
 	});
 };
