@@ -144,8 +144,14 @@ const textPrompt = (question: string, defaultValue: string = '', allowSaveAction
 			const hints: string[] = [];
 			if (allowSaveAction) hints.push('Ctrl+S — save & return');
 			if (currentDefault) hints.push('Ctrl+D — clear value');
-			if (hints.length > 0) console.log(`\x1b[90m(${hints.join('  |  ')})\x1b[0m\n`);
-			else console.log();
+			if (hints.length > 0) console.log(`\x1b[90m(${hints.join('  |  ')})\x1b[0m`);
+			console.log();
+			if (currentDefault) {
+				console.log(`\x1b[90mCurrent value:\x1b[0m \x1b[33m${currentDefault}\x1b[0m`);
+			} else {
+				console.log(`\x1b[90mCurrent value: \x1b[2m(empty)\x1b[0m`);
+			}
+			console.log();
 		};
 
 		const startPrompt = () => {
@@ -162,13 +168,12 @@ const textPrompt = (question: string, defaultValue: string = '', allowSaveAction
 					process.stdin.removeListener('keypress', onKeyPress);
 					rl.close();
 					currentDefault = '';
-					// Stay on the same prompt, re-rendered without the old value
 					setImmediate(startPrompt);
 				}
 			};
 			process.stdin.on('keypress', onKeyPress);
 
-			rl.question(`\x1b[32m❯\x1b[0m ${currentDefault ? `[${currentDefault}] ` : ''}`, (answer) => {
+			rl.question(`\x1b[32m❯\x1b[0m `, (answer) => {
 				process.stdin.removeListener('keypress', onKeyPress);
 				rl.close();
 				if (answer.trim().toLowerCase() === '!clear') {
@@ -183,6 +188,7 @@ const textPrompt = (question: string, defaultValue: string = '', allowSaveAction
 		startPrompt();
 	});
 };
+
 
 
 type SelectItem = { label: string; value: string; disabled?: boolean };
