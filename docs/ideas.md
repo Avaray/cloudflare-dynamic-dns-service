@@ -46,3 +46,23 @@ A collection of ideas for future development of the Cloudflare Dynamic DNS Servi
 - The CLI manager would display a profile picker when editing configuration.
 
 ---
+
+## Stripped CHANGELOG.md for Published Package
+
+**Problem:** `CHANGELOG.md` grows over time. Including the full history in the NPM package adds unnecessary weight, especially since users only care about the latest changes in the installed version, and NPM forces the inclusion of root `CHANGELOG.md` regardless of the `files` array in `package.json`.
+
+**Proposed solution:** Use NPM lifecycle hooks (`prepack` and `postpack`) to dynamically swap the changelog file during publication.
+
+**How it works:**
+1. A Node.js/Bun script (e.g., `scripts/trim-changelog.ts`) is created.
+2. In `package.json`, hook it into `prepack`: `"prepack": "bun run build && bun run scripts/trim-changelog.ts --trim"`.
+3. The `--trim` script reads the main `CHANGELOG.md`, finds the section matching the version in `package.json`, and extracts only that chunk.
+4. It renames the original `CHANGELOG.md` to `.CHANGELOG.md.backup`.
+5. It writes the stripped chunk to a new `CHANGELOG.md`.
+6. NPM creates the tarball with the small `CHANGELOG.md`.
+7. Hook into `postpack`: `"postpack": "bun run scripts/trim-changelog.ts --restore"`.
+8. The `--restore` script deletes the stripped file and restores `.CHANGELOG.md.backup` to `CHANGELOG.md`.
+
+This guarantees the published package contains only a fraction of the data, while the Git repository seamlessly retains the full history without any manual intervention.
+
+---
