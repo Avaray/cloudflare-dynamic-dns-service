@@ -142,8 +142,10 @@ const textPrompt = (question: string, defaultValue: string = '', allowSaveAction
 			process.stdout.write('\x1B[2J\x1B[0;0H');
 			console.log(`\x1b[36m\x1b[1m${question}\x1b[0m`);
 			const hints: string[] = [];
-			hints.push('Ctrl+←/→ to go Back/Next');
-			if (allowSaveAction) hints.push('Ctrl+S to save');
+			if (allowSaveAction) {
+				hints.push('Ctrl+←/→ to go Back/Next');
+				hints.push('Ctrl+S to save');
+			}
 			if (currentDefault) hints.push('Ctrl+D to clear');
 			if (hints.length > 0) console.log(`\x1b[90m(${hints.join('  |  ')})\x1b[0m`);
 			console.log();
@@ -165,11 +167,11 @@ const textPrompt = (question: string, defaultValue: string = '', allowSaveAction
 					process.stdin.removeListener('keypress', onKeyPress);
 					rl.close();
 					reject(new Error('SAVE_AND_RETURN'));
-				} else if (key.ctrl && key.name === 'left') {
+				} else if (allowSaveAction && key.ctrl && key.name === 'left') {
 					process.stdin.removeListener('keypress', onKeyPress);
 					rl.close();
 					reject(new Error('BACK'));
-				} else if (key.ctrl && key.name === 'right') {
+				} else if (allowSaveAction && key.ctrl && key.name === 'right') {
 					process.stdin.removeListener('keypress', onKeyPress);
 					rl.close();
 					reject(new Error('FORWARD'));
@@ -213,9 +215,12 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 			console.log(`\x1b[36m\x1b[1m${question}\x1b[0m`);
 			
 			const hints: string[] = [];
-			hints.push('Ctrl+←/→ to go Back/Next');
-			if (allowSaveAction) hints.push('Ctrl+S to save');
-			console.log(`\x1b[90m(${hints.join('  |  ')})\x1b[0m\n`);
+			if (allowSaveAction) {
+				hints.push('Ctrl+←/→ to go Back/Next');
+				hints.push('Ctrl+S to save');
+			}
+			if (hints.length > 0) console.log(`\x1b[90m(${hints.join('  |  ')})\x1b[0m\n`);
+			else console.log();
 			items.forEach((item, index) => {
 				if (item.disabled) {
 					// Dark gray — visually unavailable but readable
@@ -244,10 +249,10 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 			if (allowSaveAction && key.ctrl && key.name === 's') {
 				cleanup();
 				reject(new Error('SAVE_AND_RETURN'));
-			} else if (key.ctrl && key.name === 'left') {
+			} else if (allowSaveAction && key.ctrl && key.name === 'left') {
 				cleanup();
 				reject(new Error('BACK'));
-			} else if (key.ctrl && key.name === 'right') {
+			} else if (allowSaveAction && key.ctrl && key.name === 'right') {
 				cleanup();
 				reject(new Error('FORWARD'));
 			} else if (key.name === 'up') {
