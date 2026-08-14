@@ -46,6 +46,7 @@ interface CloudflareConfig {
   logFile: boolean | string;
   logEndpoint?: string | false;
   logEndpointLevel?: LogLevel;
+  discordUsername?: string;
   discordMessageFormat?: string;
   logFormat: "text" | "json";
   logLevel: LogLevel;
@@ -915,6 +916,7 @@ const config: CloudflareConfig = {
   logFile: logFileValue,
   logEndpoint: logEndpointValue,
   logEndpointLevel: (process.env.CDDS_LOG_ENDPOINT_LEVEL as LogLevel) || undefined,
+  discordUsername: process.env.CDDS_DISCORD_USERNAME || "Cloudflare DDNS",
   discordMessageFormat: process.env.CDDS_DISCORD_MESSAGE_FORMAT ?? "**[{level}]** {message}",
   logFormat: (process.env.CDDS_LOG_FORMAT as "text" | "json") ?? "text",
   logMaxLines: parseInt(process.env.CDDS_LOG_MAX_LINES ?? "1000"),
@@ -1096,7 +1098,7 @@ export async function startDaemon() {
           .replace(/{tag}/gi, tag)
           .replace(/{timestamp}/gi, ts)
           .replace(/{message}/gi, cleanMsg);
-        payload = { username: "Cloudflare DDNS", content: msg };
+        payload = { username: config.discordUsername || "Cloudflare DDNS", content: msg };
       } else {
         payload = { timestamp: ts, level: level.toUpperCase(), tag, message: cleanMsg };
       }
