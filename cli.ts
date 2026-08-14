@@ -347,6 +347,7 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	let ipType = existingVars['CDDS_IP_TYPE'] || initialConfig?.ipType || 'ipv4';
 	let logs = existingVars['CDDS_LOG_LEVEL'] || (initialConfig?.logLevel !== 'error' ? 'info' : 'error');
 	let proxied = existingVars['CDDS_PROXIED'] || (initialConfig?.proxied ? 'true' : 'false');
+	let logConsole = existingVars['CDDS_LOG_CONSOLE'] || (initialConfig?.logConsole === false ? 'false' : 'true');
 	let logFile = existingVars['CDDS_LOG_FILE'] || 'false';
 	let logEndpoint = existingVars['CDDS_LOG_ENDPOINT'] || (initialConfig?.logEndpoint || 'false');
 	let discordMessageFormat = existingVars['CDDS_DISCORD_MESSAGE_FORMAT'] || initialConfig?.discordMessageFormat || '**[{level}]** {message}';
