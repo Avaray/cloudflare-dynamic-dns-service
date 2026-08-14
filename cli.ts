@@ -142,8 +142,9 @@ const textPrompt = (question: string, defaultValue: string = '', allowSaveAction
 			process.stdout.write('\x1B[2J\x1B[0;0H');
 			console.log(`\x1b[36m\x1b[1m${question}\x1b[0m`);
 			const hints: string[] = [];
-			if (allowSaveAction) hints.push('Ctrl+S — save & return');
-			if (currentDefault) hints.push('Ctrl+D — clear value');
+			hints.push('Ctrl+←/→ to go Back/Next');
+			if (allowSaveAction) hints.push('Ctrl+S to save');
+			if (currentDefault) hints.push('Ctrl+D to clear');
 			if (hints.length > 0) console.log(`\x1b[90m(${hints.join('  |  ')})\x1b[0m`);
 			console.log();
 			if (currentDefault) {
@@ -164,6 +165,14 @@ const textPrompt = (question: string, defaultValue: string = '', allowSaveAction
 					process.stdin.removeListener('keypress', onKeyPress);
 					rl.close();
 					reject(new Error('SAVE_AND_RETURN'));
+				} else if (key.ctrl && key.name === 'left') {
+					process.stdin.removeListener('keypress', onKeyPress);
+					rl.close();
+					reject(new Error('BACK'));
+				} else if (key.ctrl && key.name === 'right') {
+					process.stdin.removeListener('keypress', onKeyPress);
+					rl.close();
+					reject(new Error('FORWARD'));
 				} else if (currentDefault && key.ctrl && key.name === 'd') {
 					process.stdin.removeListener('keypress', onKeyPress);
 					rl.close();
@@ -202,8 +211,11 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 		const renderMenu = () => {
 			process.stdout.write('\x1B[2J\x1B[0;0H'); // Clear and move to top
 			console.log(`\x1b[36m\x1b[1m${question}\x1b[0m`);
-			if (allowSaveAction) console.log(`\x1b[90m(Press Ctrl+S to save immediately and return)\x1b[0m\n`);
-			else console.log();
+			
+			const hints: string[] = [];
+			hints.push('Ctrl+←/→ to go Back/Next');
+			if (allowSaveAction) hints.push('Ctrl+S to save');
+			console.log(`\x1b[90m(${hints.join('  |  ')})\x1b[0m\n`);
 			items.forEach((item, index) => {
 				if (item.disabled) {
 					// Dark gray — visually unavailable but readable
@@ -232,6 +244,12 @@ const selectPrompt = (question: string, items: SelectItem[], defaultIndex: numbe
 			if (allowSaveAction && key.ctrl && key.name === 's') {
 				cleanup();
 				reject(new Error('SAVE_AND_RETURN'));
+			} else if (key.ctrl && key.name === 'left') {
+				cleanup();
+				reject(new Error('BACK'));
+			} else if (key.ctrl && key.name === 'right') {
+				cleanup();
+				reject(new Error('FORWARD'));
 			} else if (key.name === 'up') {
 				moveCursor(-1);
 				renderMenu();
@@ -392,50 +410,64 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 	let logMaxLines = existingVars['CDDS_LOG_MAX_LINES'] || initialConfig?.logMaxLines?.toString() || '1000';
 	let debugMode = existingVars['CDDS_DEBUG'] || process.env.CDDS_DEBUG || 'false';
 
-	try {
-		apiKey = await textPrompt('Cloudflare API Key / Token:', apiKey, true);
-		const keyType = detectApiKeyType(apiKey);
-		if (keyType === 'key') {
-			email = await textPrompt('Cloudflare Email (required for Global API Key):', email, true);
-		} else {
-			email = ''; // Clear email if it's a token
-		}
-		targets = await textPrompt('Targets (comma separated, e.g. sub.domain.com):', targets, true);
-		zoneId = await textPrompt('Zone ID (Optional, leave empty for auto-discover):', zoneId, true);
-		ttl = await textPrompt('TTL in seconds:', ttl, true);
-		interval = await textPrompt('Check interval in minutes:', interval, true);
-		ipType = await selectPrompt('IP Type to update:', [
-			{ label: 'IPv4 (A)', value: 'ipv4' },
-			{ label: 'IPv6 (AAAA)', value: 'ipv6' },
-			{ label: 'Both (A + AAAA)', value: 'both' }
-		], ipType === 'both' ? 2 : (ipType === 'ipv6' ? 1 : 0), true) as any;
+	type WizardStep = {
+		condition?: () => boolean;
+		action: () => Promise<void>;
+		onSkip?: () => void;
+	};
 
-		proxied = await selectPrompt('Enable Cloudflare Proxy (Orange Cloud)?', [
-			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-		], proxied === 'false' ? 1 : 0, true);
+	let masterLogs = logs !== 'error' || logFile !== 'false' ? 'true' : 'false';
 
-		const masterLogs = await selectPrompt('Do you want to enable logging?', [
-			{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-		], logs === 'error' && logFile === 'false' ? 1 : 0, true);
-
-		if (masterLogs === 'true') {
-			logs = await selectPrompt('Log level:', [
-				{ label: 'Info (recommended)', value: 'info' },
-				{ label: 'Debug (verbose)', value: 'debug' },
-				{ label: 'Warn (warnings and errors only)', value: 'warn' },
-				{ label: 'Error (errors only)', value: 'error' },
-				{ label: 'IP changes only', value: 'ip_only' }
-			], ['info', 'debug', 'warn', 'error', 'ip_only'].indexOf(logs) >= 0 ? ['info', 'debug', 'warn', 'error', 'ip_only'].indexOf(logs) : 0, true) as string;
-			logConsole = await selectPrompt('Output logs to console?', [
+	const steps: WizardStep[] = [
+		{ action: async () => { apiKey = await textPrompt('Cloudflare API Key / Token:', apiKey, true); } },
+		{
+			condition: () => detectApiKeyType(apiKey) === 'key',
+			action: async () => { email = await textPrompt('Cloudflare Email (required for Global API Key):', email, true); },
+			onSkip: () => { email = ''; }
+		},
+		{ action: async () => { targets = await textPrompt('Targets (comma separated, e.g. sub.domain.com):', targets, true); } },
+		{ action: async () => { zoneId = await textPrompt('Zone ID (Optional, leave empty for auto-discover):', zoneId, true); } },
+		{ action: async () => { ttl = await textPrompt('TTL in seconds:', ttl, true); } },
+		{ action: async () => { interval = await textPrompt('Check interval in minutes:', interval, true); } },
+		{ action: async () => {
+			ipType = await selectPrompt('IP Type to update:', [
+				{ label: 'IPv4 (A)', value: 'ipv4' },
+				{ label: 'IPv6 (AAAA)', value: 'ipv6' },
+				{ label: 'Both (A + AAAA)', value: 'both' }
+			], ipType === 'both' ? 2 : (ipType === 'ipv6' ? 1 : 0), true) as any;
+		}},
+		{ action: async () => {
+			proxied = await selectPrompt('Enable Cloudflare Proxy (Orange Cloud)?', [
 				{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-			], logConsole === 'true' ? 0 : 1, true);
-			logFile = await selectPrompt('Save logs to a file (cdds.log)?', [
+			], proxied === 'false' ? 1 : 0, true);
+		}},
+		{ action: async () => {
+			masterLogs = await selectPrompt('Do you want to enable logging?', [
 				{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-			], logFile === 'true' ? 0 : 1, true);
+			], logs === 'error' && logFile === 'false' ? 1 : 0, true);
+		}},
+		{
+			condition: () => masterLogs === 'true',
+			action: async () => {
+				logs = await selectPrompt('Log level:', [
+					{ label: 'Info (recommended)', value: 'info' },
+					{ label: 'Debug (verbose)', value: 'debug' },
+					{ label: 'Warn (warnings and errors only)', value: 'warn' },
+					{ label: 'Error (errors only)', value: 'error' },
+					{ label: 'IP changes only', value: 'ip_only' }
+				], ['info', 'debug', 'warn', 'error', 'ip_only'].indexOf(logs) >= 0 ? ['info', 'debug', 'warn', 'error', 'ip_only'].indexOf(logs) : 0, true) as string;
+			},
+			onSkip: () => { logs = 'error'; logConsole = 'false'; logFile = 'false'; logEndpoint = 'false'; }
+		},
+		{ condition: () => masterLogs === 'true', action: async () => { logConsole = await selectPrompt('Output logs to console?', [{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }], logConsole === 'true' ? 0 : 1, true); } },
+		{ condition: () => masterLogs === 'true', action: async () => { logFile = await selectPrompt('Save logs to a file (cdds.log)?', [{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }], logFile === 'true' ? 0 : 1, true); } },
+		{ condition: () => masterLogs === 'true', action: async () => {
 			logEndpoint = await textPrompt('Send logs to HTTP Endpoint URL (leave empty to disable):', logEndpoint === 'false' ? '' : logEndpoint, true);
-			if (!logEndpoint) {
-				logEndpoint = 'false';
-			} else {
+			if (!logEndpoint) logEndpoint = 'false';
+		}},
+		{
+			condition: () => masterLogs === 'true' && logEndpoint !== 'false',
+			action: async () => {
 				logEndpointLevel = await selectPrompt('Log level for the endpoint (can differ from main log level):', [
 					{ label: 'Same as main log level', value: '' },
 					{ label: 'Info', value: 'info' },
@@ -444,32 +476,53 @@ const runEnvWizard = async (initialConfig: CloudflareConfig | null) => {
 					{ label: 'Error (errors only)', value: 'error' },
 					{ label: 'IP changes only', value: 'ip_only' }
 				], ['', 'info', 'debug', 'warn', 'error', 'ip_only'].indexOf(logEndpointLevel) >= 0 ? ['', 'info', 'debug', 'warn', 'error', 'ip_only'].indexOf(logEndpointLevel) : 0, true) as string;
-				if (logEndpoint.includes('discord.com/api/webhooks')) {
-					discordUsername = await textPrompt('Discord bot username:', discordUsername, true);
-					discordMessageFormat = await textPrompt('Discord message format (variables: {level}, {tag}, {timestamp}, {message}):', discordMessageFormat, true);
+			}
+		},
+		{
+			condition: () => masterLogs === 'true' && logEndpoint !== 'false' && logEndpoint.includes('discord.com/api/webhooks'),
+			action: async () => { discordUsername = await textPrompt('Discord bot username:', discordUsername, true); }
+		},
+		{
+			condition: () => masterLogs === 'true' && logEndpoint !== 'false' && logEndpoint.includes('discord.com/api/webhooks'),
+			action: async () => { discordMessageFormat = await textPrompt('Discord message format (variables: {level}, {tag}, {timestamp}, {message}):', discordMessageFormat, true); }
+		},
+		{ condition: () => process.env.CDDS_DEBUG === 'true', action: async () => { systemdMode = await selectPrompt('Enable Systemd Mode (disable file logging if journald is active)?', [{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }], systemdMode === 'true' ? 0 : 1, true); } },
+		{ condition: () => process.env.CDDS_DEBUG === 'true', action: async () => { logFormat = await selectPrompt('Log format:', [{ label: 'Text', value: 'text' }, { label: 'JSON', value: 'json' }], logFormat === 'json' ? 1 : 0, true); } },
+		{ condition: () => process.env.CDDS_DEBUG === 'true', action: async () => { logMaxLines = await textPrompt('Max log lines (before rotation):', logMaxLines, true); } },
+		{ condition: () => process.env.CDDS_DEBUG === 'true', action: async () => { debugMode = await selectPrompt('Enable CDDS_DEBUG permanently?', [{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }], debugMode === 'true' ? 0 : 1, true); } }
+	];
+
+	let currentStep = 0;
+	let direction = 1;
+
+	try {
+		while (currentStep >= 0 && currentStep < steps.length) {
+			const step = steps[currentStep];
+			if (step.condition && !step.condition()) {
+				if (step.onSkip) step.onSkip();
+				currentStep += direction;
+				
+				// Handle going backwards out of bounds (shouldn't happen since first step is unconditional, but just in case)
+				if (currentStep < 0) currentStep = 0;
+				continue;
+			}
+			
+			try {
+				await step.action();
+				direction = 1;
+				currentStep++;
+			} catch (e: any) {
+				if (e.message === 'BACK') {
+					direction = -1;
+					currentStep--;
+					if (currentStep < 0) currentStep = 0;
+				} else if (e.message === 'FORWARD') {
+					direction = 1;
+					currentStep++;
+				} else {
+					throw e; // SAVE_AND_RETURN or other fatal errors
 				}
 			}
-		} else {
-			logs = 'error';
-			logConsole = 'false';
-			logFile = 'false';
-			logEndpoint = 'false';
-		}
-
-		if (process.env.CDDS_DEBUG === 'true') {
-			systemdMode = await selectPrompt('Enable Systemd Mode (disable file logging if journald is active)?', [
-				{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-			], systemdMode === 'true' ? 0 : 1, true);
-			
-			logFormat = await selectPrompt('Log format:', [
-				{ label: 'Text', value: 'text' }, { label: 'JSON', value: 'json' }
-			], logFormat === 'json' ? 1 : 0, true);
-			
-			logMaxLines = await textPrompt('Max log lines (before rotation):', logMaxLines, true);
-			
-			debugMode = await selectPrompt('Enable CDDS_DEBUG permanently?', [
-				{ label: 'Yes', value: 'true' }, { label: 'No', value: 'false' }
-			], debugMode === 'true' ? 0 : 1, true);
 		}
 	} catch (e: any) {
 		if (e.message !== 'SAVE_AND_RETURN') {
